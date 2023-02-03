@@ -14,6 +14,27 @@ from sklearn.manifold import TSNE
 from BEATs.Tokenizers import TokenizersConfig, Tokenizers
 from BEATs.BEATs import BEATs, BEATsConfig
 
+def get_dataset(datafolder, labelfilepath, num_categories, num_samples):
+
+    # Open the files
+    audio = glob.glob(datafolder + "/*.wav")
+    labels = pd.read_csv(labelfilepath)
+
+    # Select randomly different categories
+    random_cat = random.sample(list(labels['category'].unique()), num_categories)
+
+    # Select randomly a number of files
+    labels = labels[labels["category"].isin(random_cat)].sample(num_samples)
+
+    # Get a dataframe of the audiofiles
+    df_audio = pd.DataFrame(audio, columns=["filepath"])
+    df_audio["filename"] = [f.split("/")[-1] for f in audio]
+
+    # Result if a pd dataframe containing labels, filenames and filepaths
+    filepath_labels = labels.merge(df_audio, how="inner", on="filename")
+
+    return filepath_labels
+
 def get_waveforms(afolder):
 
     trs = []
@@ -64,14 +85,13 @@ def get_2d_features(features, perplexity):
 
 def get_figure(features_2d, labels, fig_name):
 
-    fig = sns.scatterplot(x = features_2d[:, 0], y = features_2d[:, 1], hue = labels["category"]).get_figure()
+    fig = sns.scatterplot(x = features_2d[:, 0], y = features_2d[:, 1], hue = labels).get_figure()
     fig.savefig(fig_name) 
 
-def main(afiles, labelfile, model_path, fig_name, perplexity):
+def main(afiles, labels, model_path, fig_name, perplexity):
 
-    print("[INFO] Processing the audio and getting the labels")
+    print("[INFO] Processing the audio")
     trs = get_waveforms(afiles)
-    labels = get_labels(afiles, labelfile)
 
     print("[INFO] Loading the BEATs model")
     BEATs_model = loadBEATs(model_path=model_path)
@@ -130,6 +150,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--num_categories",
+        help="Num of categories to process and visualize",
+        default=3,
+        required=False,
+        type=int,
+    )
+
+    parser.add_argument(
         "--perplexity",
         help="Perplexity parameter for the TSNE transformation",
         default=5,
@@ -139,11 +167,14 @@ if __name__ == "__main__":
     
     cli_args = parser.parse_args()
 
-    audio = glob.glob(cli_args.data_folder + "/*.wav")
-    audio = random.sample(audio, cli_args.num_samples)
+    # Result if a pd dataframe containing labels, filenames and filepaths
+    filepath_labels = get_dataset(cli_args.data_folder, 
+                                    cli_args.labelfile, 
+                                    cli_args.num_categories, 
+                                    cli_args.num_samples)
 
-    main(audio, 
-        cli_args.labelfile, 
+    main(list(filepath_labels["filepath"]),
+        list(filepath_labels["category"]),  
         cli_args.model_path, 
         cli_args.fig_name, 
         cli_args.perplexity)
