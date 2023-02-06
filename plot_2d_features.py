@@ -8,6 +8,7 @@ import torch
 import librosa
 import random
 import seaborn as sns
+import numpy as np
 
 from sklearn.manifold import TSNE
 
@@ -65,19 +66,15 @@ def loadBEATs(model_path):
 
 def extractFeatures(BEATs_model, trs):
 
-    features = []
-
     for t in trs:
         padding_mask = torch.zeros(t.shape[0], t.shape[1]).bool()
         representation = BEATs_model.extract_features(t, padding_mask=padding_mask)[0]
-        features.append(representation[:,-1,:]) # Take only the last dimension as this is the encoded audio
-
-    return features
+        representation = representation[:,-1,:]
+        yield representation.detach().numpy()
 
 def get_2d_features(features, perplexity):
 
-    representation = torch.cat(features, dim=0)
-    representation = representation.detach().numpy()
+    representation = np.concatenate(np.array(list(features)), axis=0)
     tsne = TSNE(n_components=2, perplexity=perplexity)
     features_2d = tsne.fit_transform(representation)
 
@@ -85,8 +82,9 @@ def get_2d_features(features, perplexity):
 
 def get_figure(features_2d, labels, fig_name):
 
-    fig = sns.scatterplot(x = features_2d[:, 0], y = features_2d[:, 1], hue = labels).get_figure()
-    fig.savefig(fig_name) 
+    fig = sns.scatterplot(x = features_2d[:, 0], y = features_2d[:, 1], hue = labels)
+    sns.move_legend(fig, "upper left", bbox_to_anchor=(1, 1))
+    fig.get_figure().savefig(fig_name, bbox_inches = 'tight') 
 
 def main(afiles, labels, model_path, fig_name, perplexity):
 
@@ -179,4 +177,4 @@ if __name__ == "__main__":
         cli_args.fig_name, 
         cli_args.perplexity)
 
-    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data dcase poetry run python ECS-50.py --num_samples 500 --perplexity 30
+# docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data dcase poetry run python plot_2d_features.py --num_samples 400 --perplexity 5 --num_categories 10
