@@ -1,31 +1,5 @@
-
-[0;35m
-                    ####
-                ###########
-             ####################
-         ############################
-    #####################################
-##############################################
-#########################  ###################
-#######################    ###################
-####################      ####################
-##################       #####################
-################        ######################
-#####################        #################
-######################     ###################
-#####################    #####################
-####################   #######################
-###################  #########################
-##############################################
-    #####################################
-         ############################
-             ####################
-                  ##########
-                     ####
-[0m
-
 # pytorch_lightning==1.9.0
-seed_everything: 1234
+seed_everything: 42
 trainer:
   logger: true
   enable_checkpointing: true
@@ -78,6 +52,11 @@ trainer:
   move_metrics_to_cpu: false
   multiple_trainloader_mode: max_size_cycle
   inference_mode: true
+  callbacks:
+  - class_path: pytorch_lightning.callbacks.EarlyStopping
+    init_args:
+      patience: 5
+      monitor: "val_loss"
 model:
   num_target_classes: 50
   lr: 0.001
@@ -87,11 +66,10 @@ model:
 data:
   root_dir: /data/ESC-50-master/audio/
   csv_file: /data/ESC-50-master/meta/esc50.csv
-  batch_size: 8
+  batch_size: 16
   transform: null
 finetuning:
   milestones:
   - 5
   - 10
-  train_bn: false
 ckpt_path: null

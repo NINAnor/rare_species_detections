@@ -3,6 +3,8 @@
 from pytorch_lightning import cli_lightning_logo
 from pytorch_lightning.cli import LightningCLI
 
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+
 from fine_tune.transferLearning import BEATsTransferLearningModel
 from fine_tune.ECS50DataModule import ECS50DataModule
 from fine_tune._utils import MilestonesFinetuning
@@ -28,4 +30,4 @@ if __name__ == "__main__":
     cli_main()
 
     # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run fine_tune/trainer.py fit --help
-    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run fine_tune/trainer.py fit -- accelerator gpu --trainer.gpus 1
+    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run fine_tune/trainer.py fit --accelerator gpu --trainer.gpus 1 --data.batch_size 16

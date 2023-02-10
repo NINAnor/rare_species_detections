@@ -9,9 +9,6 @@ from torchmetrics import Accuracy
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.rank_zero import rank_zero_info
-from pytorch_lightning.cli import LightningCLI
-
-from collections import Counter
 
 from BEATs.BEATs import BEATs, BEATsConfig
 
@@ -29,8 +26,6 @@ class BEATsTransferLearningModel(pl.LightningModule):
     ) -> None:
         """TransferLearningModel.
         Args:
-            backbone: Name (as in ``torchvision.models``) of the feature extractor
-            milestones: List of two epochs milestones
             lr: Initial learning rate
             lr_scheduler_gamma: Factor by which the learning rate is reduced at each milestone
         """
@@ -51,6 +46,8 @@ class BEATsTransferLearningModel(pl.LightningModule):
         })
 
         self._build_model()
+        # Log softmax the output of the classifier
+        self.logsoftmax = nn.LogSoftmax(dim=-1)
 
         self.train_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
         self.valid_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
@@ -67,7 +64,9 @@ class BEATsTransferLearningModel(pl.LightningModule):
 
     def forward(self, x):
         """Forward pass. Return x"""
+        # Get the representation
         x, _ = self.beats.extract_features(x)
+        # Get the logits
         x = self.fc(x)
         return x
 
@@ -79,11 +78,10 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # 1. Forward pass:
         x, y_true = batch
         y_logits = self.forward(x)
-        y_logprobs = torch.log_softmax(y_logits, dim=-1)
-        #y_logprobs = y_logprobs[:,-1,:]
+        y_logprobs = self.logsoftmax(y_logits)
 
         # 2. Compute loss
-        train_loss = self.loss(y_logprobs, y_true)
+        train_loss = self.loss(y_logits[:,-1,:], y_true)
 
         # 3. Compute accuracy:
         # y_scores[:,-1,:] because we need to get rid of the tokenized stuff
@@ -95,17 +93,18 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # 1. Forward pass:
         x, y_true = batch
         y_logits = self.forward(x)
-        y_logprobs = torch.log_softmax(y_logits, dim=-1)
+        y_logprobs = self.logsoftmax(y_logits)
 
         # 2. Compute loss
-        self.log("val_loss", self.loss(y_logits, y_true), prog_bar=True)
+        self.log("val_loss", self.loss(y_logits[:,-1,:], y_true), prog_bar=True)
 
         # 3. Compute accuracy:
         self.log("val_acc", self.valid_acc(y_logprobs[:,-1,:], y_true), prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = optim.Adam([{'params': self.beats.parameters()},
+        optimizer = optim.Adam([
+            {'params': self.beats.parameters()},
             {'params': self.fc.parameters()}
             ], lr=self.lr)
-        #scheduler = MultiStepLR(optimizer, milestones=self.milestones, gamma=self.lr_scheduler_gamma)
-        return [optimizer]#, [scheduler]
+
+        return [optimizer]

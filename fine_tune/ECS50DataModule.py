@@ -36,9 +36,8 @@ class AudioDataset(Dataset):
 
         # Encode label as integer
         label = self.label_encoder.transform([label])[0]
-        one_hot_label = torch.nn.functional.one_hot(torch.tensor(label), num_classes=len(self.label_encoder.classes_))
 
-        return sig_t, one_hot_label
+        return sig_t, label
 
 class ECS50DataModule(LightningDataModule):
     def __init__(self, 
