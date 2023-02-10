@@ -30,20 +30,21 @@ class AudioDataset(Dataset):
         # Load audio data and perform any desired transformations
         sig, sr = librosa.load(audio_path, sr = 16000, mono=True)
         sig_t = torch.tensor(sig)
-
+        padding_mask = torch.zeros(1, sig_t.shape[0]).bool().squeeze(0)
         if self.transform:
             sig_t = self.transform(sig_t)
 
         # Encode label as integer
         label = self.label_encoder.transform([label])[0]
 
-        return sig_t, label
+        return sig_t, padding_mask, label
 
 class ECS50DataModule(LightningDataModule):
     def __init__(self, 
                 root_dir: str = "/data/ESC-50-master/audio/", 
                 csv_file: str = "/data/ESC-50-master/meta/esc50.csv", 
                 batch_size: int = 8, 
+                split_ratio=0.8,
                 transform=None, 
                 **kwargs):
 
@@ -51,6 +52,7 @@ class ECS50DataModule(LightningDataModule):
         self.root_dir = root_dir
         self.csv_file = csv_file
         self.batch_size = batch_size
+        self.split_ratio = split_ratio
         self.transform = transform
 
         self.setup()
@@ -59,13 +61,17 @@ class ECS50DataModule(LightningDataModule):
         pass
 
     def setup(self, stage=None):
+        data_frame = pd.read_csv(self.csv_file)
         self.dataset = AudioDataset(root_dir=self.root_dir, csv_file=self.csv_file, transform=self.transform)
+        split_index = int(len(data_frame) * self.split_ratio)
+        self.train_df = data_frame.iloc[:split_index, :]
+        self.val_df = data_frame.iloc[split_index:, :]
 
     def train_dataloader(self):
         return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=True)
 
     def val_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False)
+        return DataLoader(self.train_df, batch_size=self.batch_size, shuffle=False)
 
     def test_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False)
+        return DataLoader(self.val_df, batch_size=self.batch_size, shuffle=False)

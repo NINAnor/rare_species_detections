@@ -3,11 +3,9 @@
 from pytorch_lightning import cli_lightning_logo
 from pytorch_lightning.cli import LightningCLI
 
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-
 from fine_tune.transferLearning import BEATsTransferLearningModel
 from fine_tune.ECS50DataModule import ECS50DataModule
-from fine_tune._utils import MilestonesFinetuning
+from fine_tune.callbacks import MilestonesFinetuning
 
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):

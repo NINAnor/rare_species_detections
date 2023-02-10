@@ -27,7 +27,6 @@ class BEATsTransferLearningModel(pl.LightningModule):
         """TransferLearningModel.
         Args:
             lr: Initial learning rate
-            lr_scheduler_gamma: Factor by which the learning rate is reduced at each milestone
         """
         super().__init__()
         self.lr = lr
@@ -62,10 +61,13 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # 2. Classifier
         self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.cfg.predictor_class)
 
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
         """Forward pass. Return x"""
         # Get the representation
-        x, _ = self.beats.extract_features(x)
+        if padding_mask != None:
+            x, _ = self.beats.extract_features(x, padding_mask)
+        else:
+            x, _ = self.beats.extract_features(x)
         # Get the logits
         x = self.fc(x)
         return x
@@ -76,8 +78,8 @@ class BEATsTransferLearningModel(pl.LightningModule):
         
     def training_step(self, batch, batch_idx):
         # 1. Forward pass:
-        x, y_true = batch
-        y_logits = self.forward(x)
+        x, padding_mask, y_true = batch
+        y_logits = self.forward(x, padding_mask)
         y_logprobs = self.logsoftmax(y_logits)
 
         # 2. Compute loss
@@ -91,7 +93,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         # 1. Forward pass:
-        x, y_true = batch
+        x, padding_mask, y_true = batch
         y_logits = self.forward(x)
         y_logprobs = self.logsoftmax(y_logits)
 
