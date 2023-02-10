@@ -30,7 +30,6 @@ class BEATsTransferLearningModel(pl.LightningModule):
         """TransferLearningModel.
         Args:
             backbone: Name (as in ``torchvision.models``) of the feature extractor
-            train_bn: Whether the BatchNorm layers should be trainable
             milestones: List of two epochs milestones
             lr: Initial learning rate
             lr_scheduler_gamma: Factor by which the learning rate is reduced at each milestone
@@ -48,69 +47,65 @@ class BEATsTransferLearningModel(pl.LightningModule):
         self.cfg = BEATsConfig({
             **self.checkpoint['cfg'],
             "predictor_class": self.num_target_classes,
-            "finetuned_model": True
+            "finetuned_model": False
         })
 
         self._build_model()
 
-        self.train_acc = Accuracy()
-        self.valid_acc = Accuracy()
+        self.train_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
+        self.valid_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
         self.save_hyperparameters()
 
     def _build_model(self):
 
         # 1. Load the pre-trained network
-        backbone = BEATs(self.cfg).load_state_dict(self.checkpoint['model'])
+        self.beats = BEATs(self.cfg)
+        self.beats.load_state_dict(self.checkpoint['model'])
 
-        # 2. Get the classifier
-        self.classifier = backbone.extract_feature
-
-        # 3. Loss
-        self.loss_func = nn.CrossEntropyLoss
+        # 2. Classifier
+        self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.cfg.predictor_class)
 
     def forward(self, x):
-        """Forward pass. Return lprobs"""
-        x = self.classifier(x)
+        """Forward pass. Return x"""
+        x, _ = self.beats.extract_features(x)
+        x = self.fc(x)
         return x
 
     def loss(self, lprobs, labels):
-        return self.loss_func(input=lprobs, target=labels)
+        self.loss_func = nn.NLLLoss() # CrossEntropy loss if not log_softmax
+        return self.loss_func(lprobs, labels)
         
     def training_step(self, batch, batch_idx):
         # 1. Forward pass:
-        x, y = batch
+        x, y_true = batch
         y_logits = self.forward(x)
-        y_scores = torch.log_softmax(y_logits)
-        y_true = y.view((-1, 1)).type_as(x)
+        y_logprobs = torch.log_softmax(y_logits, dim=-1)
+        #y_logprobs = y_logprobs[:,-1,:]
 
         # 2. Compute loss
-        train_loss = self.loss(y_logits, y_true)
+        train_loss = self.loss(y_logprobs, y_true)
 
         # 3. Compute accuracy:
-        self.log("train_acc", self.train_acc(y_scores, y_true.int()), prog_bar=True)
+        # y_scores[:,-1,:] because we need to get rid of the tokenized stuff
+        self.log("train_acc", self.train_acc(y_logprobs[:,-1,:], y_true), prog_bar=True)
 
         return train_loss
 
     def validation_step(self, batch, batch_idx):
         # 1. Forward pass:
-        x, y = batch
+        x, y_true = batch
         y_logits = self.forward(x)
-        y_scores = torch.log_softmax(y_logits)
-        y_true = y.view((-1, 1)).type_as(x)
+        y_logprobs = torch.log_softmax(y_logits, dim=-1)
 
         # 2. Compute loss
         self.log("val_loss", self.loss(y_logits, y_true), prog_bar=True)
 
         # 3. Compute accuracy:
-        self.log("val_acc", self.valid_acc(y_scores, y_true.int()), prog_bar=True)
+        self.log("val_acc", self.valid_acc(y_logprobs[:,-1,:], y_true), prog_bar=True)
 
     def configure_optimizers(self):
-        parameters = list(self.parameters())
-        trainable_parameters = list(filter(lambda p: p.requires_grad, parameters))
-        rank_zero_info(
-            f"The model will start training with only {len(trainable_parameters)} "
-            f"trainable parameters out of {len(parameters)}."
-        )
-        optimizer = optim.Adam(trainable_parameters, lr=self.lr)
-        scheduler = MultiStepLR(optimizer, milestones=self.milestones, gamma=self.lr_scheduler_gamma)
-        return [optimizer], [scheduler]
+        optimizer = optim.Adam([{'params': self.beats.parameters()},
+            {'params': self.fc.parameters()}
+            ], lr=self.lr)
+        #scheduler = MultiStepLR(optimizer, milestones=self.milestones, gamma=self.lr_scheduler_gamma)
+        return [optimizer]#, [scheduler]

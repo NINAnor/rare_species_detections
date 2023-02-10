@@ -21,7 +21,7 @@ class MyLightningCLI(LightningCLI):
         )
 
 def cli_main():
-    MyLightningCLI(BEATsTransferLearningModel, ECS50DataModule, seed_everything_default=1234)
+    MyLightningCLI(BEATsTransferLearningModel, ECS50DataModule, seed_everything_default=42)
 
 if __name__ == "__main__":
     cli_lightning_logo()

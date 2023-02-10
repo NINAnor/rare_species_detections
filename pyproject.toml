@@ -14,7 +14,6 @@ matplotlib = "^3.5.2"
 ray = {extras = ["tune"], version = "^1.12.0"}
 mlflow = "^1.25.1"
 bayesian-optimization = "^1.2.0"
-pytorch-lightning = "1.6.3"
 audiomentations = "^0.25.1"
 torch = {url = "https://download.pytorch.org/whl/cu113/torch-1.11.0%2Bcu113-cp38-cp38-linux_x86_64.whl"}
 torchvision = {url = "https://download.pytorch.org/whl/cu113/torchvision-0.12.0%2Bcu113-cp38-cp38-linux_x86_64.whl"}
@@ -22,6 +21,8 @@ torchaudio = {url = "https://download.pytorch.org/whl/cu113/torchaudio-0.11.0%2B
 "fs.sshfs" = "^1.0.1"
 fs = "^2.4.16"
 seaborn = "^0.12.2"
+pytorch-lightning = "1.9.0"
+jsonargparse = {version = "4.17.0", extras = ["signatures"]}
 
 [tool.poetry.dev-dependencies]
 
