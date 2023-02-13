@@ -16,7 +16,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
     def __init__(
         self,
         num_target_classes: int = 50,
-        milestones: tuple = (2, 4),
+        milestones: int= 5,
         batch_size: int = 32,
         lr: float = 1e-3,
         lr_scheduler_gamma: float = 1e-1,
@@ -70,6 +70,10 @@ class BEATsTransferLearningModel(pl.LightningModule):
             x, _ = self.beats.extract_features(x)
         # Get the logits
         x = self.fc(x)
+
+        # Mean pool the second layer 
+        x = x.mean(dim=1)
+        
         return x
 
     def loss(self, lprobs, labels):
@@ -77,17 +81,17 @@ class BEATsTransferLearningModel(pl.LightningModule):
         return self.loss_func(lprobs, labels)
         
     def training_step(self, batch, batch_idx):
+
         # 1. Forward pass:
         x, padding_mask, y_true = batch
         y_logits = self.forward(x, padding_mask)
         y_logprobs = self.logsoftmax(y_logits)
 
         # 2. Compute loss
-        train_loss = self.loss(y_logits[:,-1,:], y_true)
+        train_loss = self.loss(y_logits, y_true)
 
         # 3. Compute accuracy:
-        # y_scores[:,-1,:] because we need to get rid of the tokenized stuff
-        self.log("train_acc", self.train_acc(y_logprobs[:,-1,:], y_true), prog_bar=True)
+        self.log("train_acc", self.train_acc(y_logprobs, y_true), prog_bar=True)
 
         return train_loss
 
@@ -98,10 +102,10 @@ class BEATsTransferLearningModel(pl.LightningModule):
         y_logprobs = self.logsoftmax(y_logits)
 
         # 2. Compute loss
-        self.log("val_loss", self.loss(y_logits[:,-1,:], y_true), prog_bar=True)
+        self.log("val_loss", self.loss(y_logits, y_true), prog_bar=True)
 
         # 3. Compute accuracy:
-        self.log("val_acc", self.valid_acc(y_logprobs[:,-1,:], y_true), prog_bar=True)
+        self.log("val_acc", self.valid_acc(y_logprobs, y_true), prog_bar=True)
 
     def configure_optimizers(self):
         optimizer = optim.Adam([
@@ -109,4 +113,4 @@ class BEATsTransferLearningModel(pl.LightningModule):
             {'params': self.fc.parameters()}
             ], lr=self.lr)
 
-        return [optimizer]
+        return optimizer
