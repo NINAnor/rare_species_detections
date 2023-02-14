@@ -22,9 +22,9 @@ docker build -t dcase -f Dockerfile .
 
 ```
 docker run -v $PWD:/app \
-            -v DATAPATH:/data \
-            --gpus all # if you have GPUs available \
-            poetry run fine_tune/trainer.py fit --config /app/config.yaml
+            -v $DATAPATH:/data \
+            --gpus all `# if you have GPUs available` \
+            dcase poetry run fine_tune/trainer.py fit --config /app/config.yaml
 ```
 
 
