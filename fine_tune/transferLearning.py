@@ -63,17 +63,19 @@ class BEATsTransferLearningModel(pl.LightningModule):
 
     def forward(self, x, padding_mask=None):
         """Forward pass. Return x"""
+        
         # Get the representation
         if padding_mask != None:
             x, _ = self.beats.extract_features(x, padding_mask)
         else:
             x, _ = self.beats.extract_features(x)
+
         # Get the logits
         x = self.fc(x)
 
         # Mean pool the second layer 
         x = x.mean(dim=1)
-        
+
         return x
 
     def loss(self, lprobs, labels):
