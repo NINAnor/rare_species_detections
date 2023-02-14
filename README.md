@@ -1,6 +1,8 @@
 # BEATs fine-tuning pipeline
 
-This GitHub repository is made for fine-tuning BEATs on your own dataset.
+This GitHub repository is made for fine-tuning BEATs on your own dataset and is still a work in progress.
+
+In its current state, the repo can be used to fine-tune a fully connected layer that is appended to the BEATs' feature extractor. However, it is not yet possible to fine tune BEATs' weights.
 
 ## How to use the repository
 
