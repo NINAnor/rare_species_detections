@@ -74,13 +74,10 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # Mean pool the second layer 
         x = x.mean(dim=1)
 
-        # Softmax the output
-        x = F.softmax(x, dim=-1)
-
         return x
 
     def loss(self, lprobs, labels):
-        self.loss_func = nn.NLLLoss() # CrossEntropy loss if not log_softmax
+        self.loss_func = nn.CrossEntropyLoss()
         return self.loss_func(lprobs, labels)
         
     def training_step(self, batch, batch_idx):
@@ -109,7 +106,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
         self.log("val_acc", self.valid_acc(y_probs, y_true), prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = optim.Adam([
+        optimizer = optim.AdamW([
             {'params': self.beats.parameters()},
             {'params': self.fc.parameters()}
             ], lr=self.lr)
