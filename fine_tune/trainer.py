@@ -7,6 +7,7 @@ from fine_tune.transferLearning import BEATsTransferLearningModel
 from fine_tune.ECS50DataModule import ECS50DataModule
 from fine_tune.callbacks import MilestonesFinetuning
 
+
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
         parser.add_lightning_class_args(MilestonesFinetuning, "finetuning")
@@ -20,8 +21,12 @@ class MyLightningCLI(LightningCLI):
             }
         )
 
+
 def cli_main():
-    MyLightningCLI(BEATsTransferLearningModel, ECS50DataModule, seed_everything_default=42)
+    MyLightningCLI(
+        BEATsTransferLearningModel, ECS50DataModule, seed_everything_default=42
+    )
+
 
 if __name__ == "__main__":
     cli_lightning_logo()

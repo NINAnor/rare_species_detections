@@ -1,2 +1,4 @@
 *.png
 lightning_logs/*
+data/
+*.pyc

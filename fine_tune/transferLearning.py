@@ -12,16 +12,17 @@ from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 from BEATs.BEATs import BEATs, BEATsConfig
 
+
 class BEATsTransferLearningModel(pl.LightningModule):
     def __init__(
         self,
         num_target_classes: int = 50,
-        milestones: int= 5,
+        milestones: int = 5,
         batch_size: int = 32,
         lr: float = 1e-3,
         lr_scheduler_gamma: float = 1e-1,
         num_workers: int = 6,
-        model_path: str = '/data/BEATs/BEATs_iter3_plus_AS2M.pt',
+        model_path: str = "/data/BEATs/BEATs_iter3_plus_AS2M.pt",
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -38,30 +39,35 @@ class BEATsTransferLearningModel(pl.LightningModule):
 
         # Initialise BEATs model
         self.checkpoint = torch.load(model_path)
-        self.cfg = BEATsConfig({
-            **self.checkpoint['cfg'],
-            "predictor_class": self.num_target_classes,
-            "finetuned_model": False
-        })
+        self.cfg = BEATsConfig(
+            {
+                **self.checkpoint["cfg"],
+                "predictor_class": self.num_target_classes,
+                "finetuned_model": False,
+            }
+        )
 
         self._build_model()
 
-        self.train_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
-        self.valid_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
+        self.train_acc = Accuracy(
+            task="multiclass", num_classes=self.num_target_classes
+        )
+        self.valid_acc = Accuracy(
+            task="multiclass", num_classes=self.num_target_classes
+        )
         self.save_hyperparameters()
 
     def _build_model(self):
-
         # 1. Load the pre-trained network
         self.beats = BEATs(self.cfg)
-        self.beats.load_state_dict(self.checkpoint['model'])
+        self.beats.load_state_dict(self.checkpoint["model"])
 
         # 2. Classifier
         self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.cfg.predictor_class)
 
     def forward(self, x, padding_mask=None):
         """Forward pass. Return x"""
-        
+
         # Get the representation
         if padding_mask != None:
             x, _ = self.beats.extract_features(x, padding_mask)
@@ -71,7 +77,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # Get the logits
         x = self.fc(x)
 
-        # Mean pool the second layer 
+        # Mean pool the second layer
         x = x.mean(dim=1)
 
         return x
@@ -79,9 +85,8 @@ class BEATsTransferLearningModel(pl.LightningModule):
     def loss(self, lprobs, labels):
         self.loss_func = nn.CrossEntropyLoss()
         return self.loss_func(lprobs, labels)
-        
-    def training_step(self, batch, batch_idx):
 
+    def training_step(self, batch, batch_idx):
         # 1. Forward pass:
         x, padding_mask, y_true = batch
         y_probs = self.forward(x, padding_mask)
@@ -106,9 +111,9 @@ class BEATsTransferLearningModel(pl.LightningModule):
         self.log("val_acc", self.valid_acc(y_probs, y_true), prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW([
-            {'params': self.beats.parameters()},
-            {'params': self.fc.parameters()}
-            ], lr=self.lr)
+        optimizer = optim.AdamW(
+            [{"params": self.beats.parameters()}, {"params": self.fc.parameters()}],
+            lr=self.lr,
+        )
 
         return optimizer

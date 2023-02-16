@@ -55,7 +55,7 @@ trainer:
   callbacks:
   - class_path: pytorch_lightning.callbacks.EarlyStopping
     init_args:
-      patience: 7
+      patience: 5
       monitor: "val_loss"
 model:
   num_target_classes: 50
@@ -69,5 +69,5 @@ data:
   batch_size: 32
   transform: null
 finetuning:
-  milestones: 1
+  milestones: 5
 ckpt_path: null
