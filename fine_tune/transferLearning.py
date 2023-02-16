@@ -45,8 +45,6 @@ class BEATsTransferLearningModel(pl.LightningModule):
         })
 
         self._build_model()
-        # Log softmax the output of the classifier
-        self.logsoftmax = nn.LogSoftmax(dim=-1)
 
         self.train_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
         self.valid_acc = Accuracy(task="multiclass", num_classes=self.num_target_classes)
@@ -76,6 +74,9 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # Mean pool the second layer 
         x = x.mean(dim=1)
 
+        # Softmax the output
+        x = F.softmax(x, dim=-1)
+
         return x
 
     def loss(self, lprobs, labels):
@@ -86,28 +87,26 @@ class BEATsTransferLearningModel(pl.LightningModule):
 
         # 1. Forward pass:
         x, padding_mask, y_true = batch
-        y_logits = self.forward(x, padding_mask)
-        y_logprobs = self.logsoftmax(y_logits)
+        y_probs = self.forward(x, padding_mask)
 
         # 2. Compute loss
-        train_loss = self.loss(y_logits, y_true)
+        train_loss = self.loss(y_probs, y_true)
 
         # 3. Compute accuracy:
-        self.log("train_acc", self.train_acc(y_logprobs, y_true), prog_bar=True)
+        self.log("train_acc", self.train_acc(y_probs, y_true), prog_bar=True)
 
         return train_loss
 
     def validation_step(self, batch, batch_idx):
         # 1. Forward pass:
         x, padding_mask, y_true = batch
-        y_logits = self.forward(x)
-        y_logprobs = self.logsoftmax(y_logits)
+        y_probs = self.forward(x)
 
         # 2. Compute loss
-        self.log("val_loss", self.loss(y_logits, y_true), prog_bar=True)
+        self.log("val_loss", self.loss(y_probs, y_true), prog_bar=True)
 
         # 3. Compute accuracy:
-        self.log("val_acc", self.valid_acc(y_logprobs, y_true), prog_bar=True)
+        self.log("val_acc", self.valid_acc(y_probs, y_true), prog_bar=True)
 
     def configure_optimizers(self):
         optimizer = optim.Adam([
