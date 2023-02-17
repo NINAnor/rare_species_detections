@@ -113,7 +113,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = optim.AdamW(
             [{"params": self.beats.parameters()}, {"params": self.fc.parameters()}],
-            lr=self.lr,
+            lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
         )
 
         return optimizer

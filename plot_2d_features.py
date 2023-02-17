@@ -56,14 +56,25 @@ def get_labels(afiles, labelfile):
     return labels
 
 
-def loadBEATs(model_path):
+def loadBEATs(model_path, ft_model):
     checkpoint = torch.load(model_path)
     cfg = BEATsConfig(checkpoint["cfg"])
     BEATs_model = BEATs(cfg)
-    BEATs_model.load_state_dict(checkpoint["model"])
+
+    # If no fine tuned model is specified, use the base BEATs
+    if ft_model == "None":
+        print("Using the BEATs model to get the representations")
+        BEATs_model.load_state_dict(checkpoint["model"])
+
+    # Else use the fine tuned model
+    else:
+        print("Using the fine tuned model to get the representations")
+        ft = torch.load(ft_model)
+        ft["state_dict"] = {key.replace('beats.', ''): value for key, value in ft["state_dict"].items() if not key.endswith(('fc.weight', 'fc.bias'))}
+        BEATs_model.load_state_dict(ft["state_dict"])
+
     BEATs_model.eval()
     return BEATs_model
-
 
 def extractFeatures(BEATs_model, trs):
     for t in trs:
@@ -87,12 +98,12 @@ def get_figure(features_2d, labels, fig_name):
     fig.get_figure().savefig(fig_name, bbox_inches="tight")
 
 
-def main(afiles, labels, model_path, fig_name, perplexity):
+def main(afiles, labels, model_path, ft_model_path, fig_name, perplexity):
     print("[INFO] Processing the audio")
     trs = get_waveforms(afiles)
 
     print("[INFO] Loading the BEATs model")
-    BEATs_model = loadBEATs(model_path=model_path)
+    BEATs_model = loadBEATs(model_path=model_path, ft_model=ft_model_path)
 
     print("[INFO] Getting the features")
     features = extractFeatures(BEATs_model, trs)
@@ -132,6 +143,14 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--ft_model_path",
+        help="Num samples to process and visualize",
+        default=None,
+        required=False,
+        type=str,
+    )
+
+    parser.add_argument(
         "--fig_name",
         help="Num samples to process and visualize",
         default="out.png",
@@ -142,7 +161,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_samples",
         help="Num samples to process and visualize",
-        default=50,
+        default=400,
         required=False,
         type=int,
     )
@@ -150,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num_categories",
         help="Num of categories to process and visualize",
-        default=3,
+        default=10,
         required=False,
         type=int,
     )
@@ -163,7 +182,17 @@ if __name__ == "__main__":
         type=int,
     )
 
+    parser.add_argument(
+        "--random_seed",
+        help="Random seed",
+        default=42,
+        required=False,
+        type=int,
+    )
+
     cli_args = parser.parse_args()
+
+    random.seed(cli_args.random_seed)
 
     # Result if a pd dataframe containing labels, filenames and filepaths
     filepath_labels = get_dataset(
@@ -177,9 +206,10 @@ if __name__ == "__main__":
         list(filepath_labels["filepath"]),
         list(filepath_labels["category"]),
         cli_args.model_path,
+        cli_args.ft_model_path,
         cli_args.fig_name,
         cli_args.perplexity,
     )
 
 # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data dcase poetry run python plot_2d_features.py --num_samples 400 --perplexity 5 --num_categories 10
-# docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data dcase poetry run python plot_2d_features.py --num_samples 400 --perplexity 5 --num_categories 10 --model_path "/app/lightning_logs/version_0/checkpoints/epoch=9-step=500.ckpt"
+# docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data dcase poetry run python plot_2d_features.py --ft_model_path "/app/lightning_logs/version_3/checkpoints/epoch=7-step=400.ckpt" --fig_name "ft_fig.png"

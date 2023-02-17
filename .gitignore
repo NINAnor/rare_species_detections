@@ -2,3 +2,4 @@
 lightning_logs/*
 data/
 *.pyc
+notebooks/*
