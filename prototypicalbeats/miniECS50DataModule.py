@@ -5,8 +5,6 @@ import pandas as pd
 import os
 
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-from sklearn.preprocessing import LabelEncoder
 
 from pytorch_lightning import LightningDataModule
 
@@ -19,7 +17,7 @@ def few_shot_dataloader(root_dir, data_frame, n_way, n_shot, n_query, n_tasks, t
     n_way: number of classes
     n_shot: number of images PER CLASS in the support set
     n_query: number of images PER CLASSS in the query set
-    n_tasks: Not sure
+    n_tasks: number of episodes (number of times the loader gives the data during a training step)
     """       
     
     df = AudioDataset(
@@ -44,7 +42,7 @@ def few_shot_dataloader(root_dir, data_frame, n_way, n_shot, n_query, n_tasks, t
     return loader
 
 
-class ECS50DataModule(LightningDataModule):
+class miniECS50DataModule(LightningDataModule):
     def __init__(
         self,
         root_dir_train: str = "/data/ESC50mini/audio/train",
@@ -75,8 +73,8 @@ class ECS50DataModule(LightningDataModule):
         train_loader = few_shot_dataloader(self.root_dir_train, 
                                            self.train_set, 
                                            n_way=5, 
-                                           n_shot=7, 
-                                           n_query=3, 
+                                           n_shot=5, 
+                                           n_query=5, 
                                            n_tasks=100, 
                                            transform=self.transform)
         return train_loader
@@ -86,8 +84,8 @@ class ECS50DataModule(LightningDataModule):
         val_loader = few_shot_dataloader(self.root_dir_train, 
                                            self.val_set, 
                                            n_way=5, 
-                                           n_shot=0, 
-                                           n_query=5, 
+                                           n_shot=3, 
+                                           n_query=2, 
                                            n_tasks=100, 
                                            transform=self.transform)
         return val_loader
