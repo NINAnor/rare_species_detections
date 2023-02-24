@@ -1,6 +1,0 @@
-lr: 0.001
-lr_scheduler_gamma: 0.1
-milestones: 1
-model_path: /data/BEATs/BEATs_iter3_plus_AS2M.pt
-n_way: 5
-num_workers: 6

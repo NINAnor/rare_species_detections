@@ -12,13 +12,12 @@ from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 from BEATs.BEATs import BEATs, BEATsConfig
 
-
 class ProtoBEATsModel(pl.LightningModule):
     def __init__(
         self,
         n_way: int = 5,
         milestones: int = 5,
-        lr: float = 1e-3,
+        lr: float = 1e-5,
         lr_scheduler_gamma: float = 1e-1,
         num_workers: int = 6,
         model_path: str = "/data/BEATs/BEATs_iter3_plus_AS2M.pt",
@@ -56,30 +55,33 @@ class ProtoBEATsModel(pl.LightningModule):
 
     def euclidean_distance(self, x1, x2):
         return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))
+    
+    def get_prototypes(self, z_support, support_labels, n_way):
+        z_proto = torch.cat([
+                z_support[torch.nonzero(support_labels == label)].mean(0)
+                for label in range(n_way)
+                ])
+        return z_proto
+    
+    def get_embeddings(self, input, padding_mask):
+        """Return the embeddings and the padding mask"""
+        return self.beats.extract_features(input, padding_mask)
 
     def forward(self, 
                 support_images: torch.Tensor,
                 support_labels: torch.Tensor,
                 query_images: torch.Tensor,
                 padding_mask=None):
-        """Forward pass. Return x / don't forget the padding mask"""
 
         # Extract the features of support and query images
-        z_support, _ = self.beats.extract_features(support_images)
-        z_query, _ = self.beats.extract_features(query_images)
+        z_support, _ = self.get_embeddings(support_images, padding_mask)
+        z_query, _ = self.get_embeddings(query_images, padding_mask)
 
         # Infer the number of classes from the labels of the support set
         n_way = len(torch.unique(support_labels))
 
         # Prototype i is the mean of all support features vector with label i
-        proto = []
-        for label in range(n_way):
-            class_support = z_support[support_labels == label]
-            if len(class_support) > 0:
-                proto.append(class_support.mean(dim=0))
-            else:
-                proto.append(torch.zeros_like(z_support[0]))
-        z_proto = torch.stack(proto, dim=0)
+        z_proto = self.get_prototypes(z_support, support_labels, n_way)
 
         # Compute the euclidean distance from queries to prototypes
         dists = []
@@ -92,7 +94,8 @@ class ProtoBEATsModel(pl.LightningModule):
         dists = dists.mean(dim=2).squeeze()
 
         scores = -dists
-        return scores.requires_grad_(True)
+
+        return scores
 
     def loss(self, lprobs, labels):
         self.loss_func = nn.CrossEntropyLoss()
@@ -106,7 +109,8 @@ class ProtoBEATsModel(pl.LightningModule):
         )
 
         # 2. Compute loss
-        train_loss = self.loss(classification_scores, query_labels) #.requires_grad_(True)
+        train_loss = self.loss(classification_scores.requires_grad_(True), query_labels) 
+        self.log("train_loss", train_loss, prog_bar=True)
 
         # 3. Compute accuracy:
         predicted_labels = torch.max(classification_scores, 1)[1]
@@ -126,11 +130,11 @@ class ProtoBEATsModel(pl.LightningModule):
 
         # 3. Compute accuracy:
         predicted_labels = torch.max(classification_scores, 1)[1]
-        self.log("val_acc", self.train_acc(predicted_labels, query_labels), prog_bar=True)
+        self.log("val_acc", self.valid_acc(predicted_labels, query_labels), prog_bar=True)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(
-            [{"params": self.beats.parameters()}],
+            self.beats.parameters(),
             lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
         )
         return optimizer
