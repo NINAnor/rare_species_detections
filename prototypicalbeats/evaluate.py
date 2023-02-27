@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import DataLoader
 
 from tqdm import tqdm
+
+from sklearn.manifold import TSNE
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.miniECS50DataModule import miniECS50DataModule
@@ -79,6 +84,24 @@ def evaluate(data_loader: DataLoader):
 
     return all_prototypes, all_query_embeddings, all_query_labels
 
+def get_2d_features(features, perplexity):
+    return TSNE(n_components=2, perplexity=perplexity).fit_transform(features)
+
+def get_figure(features_2d, labels, fig_name):
+
+    query_2d = features_2d[5:]
+    query_labels = labels[5:]
+
+    proto_2d = features_2d[:5]
+    proto_labels = labels[:5]
+
+    fig = sns.scatterplot(x=query_2d[:, 0], y=query_2d[:, 1], hue=query_labels, palette="deep")
+    sns.scatterplot(x=proto_2d[:, 0], y=proto_2d[:, 1], hue=proto_labels, palette="deep", marker='s', s=100)
+    
+    sns.move_legend(fig, "upper left", bbox_to_anchor=(1, 1))
+    fig.get_figure().savefig(fig_name, bbox_inches="tight")
+    plt.show()
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -101,4 +124,19 @@ if __name__ == "__main__":
         model.load_state_dict(checkpoints["state_dict"])
 
     test_loader = miniECS50DataModule().test_dataloader()
-    evaluate(test_loader)
+    all_prototypes, all_query_embeddings, all_query_labels = evaluate(test_loader)
+
+    # Reshape all_prototypes and all_query_embeddings
+    all_prototypes_r = all_prototypes[:,-1,:].reshape(10,5,768)
+    all_query_embeddings_r = all_query_embeddings[:,-1,:].reshape(10,100,768)
+
+    # Select a particular embedding - IN WORK MEAN ACROSS EACH TENSOR
+    prototype_s = all_prototypes_r[1,:,:]
+    query_embeddings_s = all_query_embeddings_r[1,:,:]
+    query_labels_s = all_query_labels_r = all_query_labels[100:200]
+
+    proto_query = torch.cat([prototype_s, query_embeddings_s])
+    all_labels = torch.cat([torch.tensor([5,5,5,5,5,]), query_labels_s])
+
+    features_2d = get_2d_features(proto_query, perplexity=7)
+    get_figure(features_2d, all_labels, "protoembeddings.png")
