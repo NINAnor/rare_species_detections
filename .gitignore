@@ -1,5 +1,9 @@
 *.png
 lightning_logs/*
+prototypicalbeats/lightning_logs/*
 data/
 *.pyc
 notebooks/*
+__pycache__/*
+save_exples/*
+*.ipynb

@@ -4,8 +4,8 @@ from pytorch_lightning import cli_lightning_logo
 from pytorch_lightning.cli import LightningCLI
 
 from fine_tune.transferLearning import BEATsTransferLearningModel
-from fine_tune.ECS50DataModule import ECS50DataModule
-from fine_tune.callbacks import MilestonesFinetuning
+from datamodules.ECS50DataModule import ECS50DataModule
+from callbacks.callbacks import MilestonesFinetuning
 
 
 class MyLightningCLI(LightningCLI):
@@ -21,12 +21,10 @@ class MyLightningCLI(LightningCLI):
             }
         )
 
-
 def cli_main():
     MyLightningCLI(
         BEATsTransferLearningModel, ECS50DataModule, seed_everything_default=42
     )
-
 
 if __name__ == "__main__":
     cli_lightning_logo()

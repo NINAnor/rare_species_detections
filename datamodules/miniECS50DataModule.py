@@ -106,7 +106,7 @@ class miniECS50DataModule(LightningDataModule):
                                            self.test_set, 
                                            n_way=5, 
                                            n_shot=5, 
-                                           n_query=10, 
+                                           n_query=20, 
                                            n_tasks=self.n_task_test, 
                                            transform=self.transform)
         return test_loader
