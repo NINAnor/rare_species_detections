@@ -49,6 +49,6 @@ docker run -v $PWD:/app \
 docker run -v $PWD:/app \
             -v $DATAPATH:/data \
             --gpus all \
-            dcase \
+            beats \
             poetry run fine_tune/trainer.py fit --accelerator gpu --trainer.gpus 1 --data.batch_size 16
 ```
