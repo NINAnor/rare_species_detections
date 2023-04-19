@@ -7,7 +7,7 @@ import os
 from torch.utils.data import DataLoader
 
 from pytorch_lightning import LightningDataModule
-from datamodules.dataset import TaskSampler, AudioDataset
+from data_utils.dataset import TaskSampler, AudioDataset
 
 def few_shot_dataloader(root_dir, data_frame, n_way, n_shot, n_query, n_tasks, transform = None): 
     """
