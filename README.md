@@ -1,9 +1,9 @@
 # BEATs fine-tuning pipeline :musical_note:
 
-This GitHub repository is made for using [BEATs](https://arxiv.org/abs/2212.09058) on your own dataset and is still a work in progress. In its current form, the repository allow a user to 
+This GitHub repository is made for using [BEATs](https://arxiv.org/abs/2212.09058) on your own dataset and is still a work in progress. In its current form, the repository allow a user to
 
-- Fine-tune BEATs on the [ECS50 dataset](https://github.com/karolpiczak/ESC-50). 
-- Fine-tune a prototypical network with BEATs as feature extractor on the [ECS50 dataset](https://github.com/karolpiczak/ESC-50). 
+- Fine-tune BEATs on the [ECS50 dataset](https://github.com/karolpiczak/ESC-50).
+- Fine-tune a prototypical network with BEATs as feature extractor on the [ECS50 dataset](https://github.com/karolpiczak/ESC-50).
 
 ## Necessary downloads
 
@@ -27,7 +27,7 @@ Providing that `ESC-50-master` and `BEATs/BEATs_iter3_plus_AS2M.pt` are stored i
 docker run -v $PWD:/app \
             -v $DATAPATH:/data \
             --gpus all `# if you have GPUs available` \
-            beats \ 
+            beats \
             poetry run fine_tune/trainer.py fit --config /app/config.yaml
 ```
 
@@ -39,7 +39,7 @@ docker run -v $PWD:/app \
 docker run -v $PWD:/app \
             -v $DATAPATH:/data \
             --gpus all `# if you have GPUs available` \
-            beats \ 
+            beats \
             poetry run data_utils/miniECS50.py
 ```
 
@@ -50,5 +50,5 @@ docker run -v $PWD:/app \
             -v $DATAPATH:/data \
             --gpus all \
             beats \
-            poetry run fine_tune/trainer.py fit --trainer.accelerator gpu --trainer.gpus 1 --data.batch_size 16
+            poetry run prototypicalbeats/trainer.py fit --trainer.accelerator gpu --trainer.gpus 1
 ```
