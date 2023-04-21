@@ -11,30 +11,33 @@ import torch
 from torch import Tensor
 from torch.utils.data import Sampler, Dataset
 
+
 class AudioDataset(Dataset):
     """
     AudioDataset assumes that the audio files are stored in a specific folder
     and the list of labels is stored in a CSV file in the column "category"
     """
-    def __init__(self, root_dir, data_frame, transform=None):
+
+    def __init__(self, root_dir, data_frame, transform=None, segment_length=None):
         self.root_dir = root_dir
         self.transform = transform
         self.data_frame = data_frame
 
         self.label_encoder = LabelEncoder()
         self.label_encoder.fit(self.data_frame["category"])
+        self.segment_length = segment_length
 
     def __len__(self):
         return len(self.data_frame)
-    
+
     def get_labels(self):
-        labels=[]
+        labels = []
 
         for i in range(0, len(self.data_frame)):
             label = self.data_frame.iloc[i]["category"]
             label = self.label_encoder.transform([label])[0]
             labels.append(label)
-        
+
         return labels
 
     def __getitem__(self, idx):
@@ -44,7 +47,7 @@ class AudioDataset(Dataset):
         # Load audio data and perform any desired transformations
         sig, sr = librosa.load(audio_path, sr=16000, mono=True)
         sig_t = torch.tensor(sig)
-        #padding_mask = torch.zeros(1, sig_t.shape[0]).bool().squeeze(0)
+        # padding_mask = torch.zeros(1, sig_t.shape[0]).bool().squeeze(0)
         if self.transform:
             sig_t = self.transform(sig_t)
 
@@ -53,9 +56,11 @@ class AudioDataset(Dataset):
 
         return sig_t, label
 
+
 ###############################################################
 # CREDIT TO https://github.com/sicara/easy-few-shot-learning/ #
 ###############################################################
+
 
 class FewShotDataset(Dataset):
     """
@@ -84,6 +89,7 @@ class FewShotDataset(Dataset):
         raise NotImplementedError(
             "Implementations of FewShotDataset need a get_labels method."
         )
+
 
 class TaskSampler(Sampler):
     """

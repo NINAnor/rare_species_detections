@@ -50,5 +50,5 @@ docker run -v $PWD:/app \
             -v $DATAPATH:/data \
             --gpus all \
             beats \
-            poetry run prototypicalbeats/trainer.py fit --trainer.accelerator gpu --trainer.gpus 1
+            poetry run prototypicalbeats/trainer.py fit --trainer.accelerator gpu --trainer.gpus 1 --data miniECS50DataModule
 ```

@@ -5,7 +5,9 @@ from pytorch_lightning.cli import LightningCLI
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.miniECS50DataModule import miniECS50DataModule
+from datamodules.DCASEDataModule import DCASEDataModule
 from callbacks.callbacks import MilestonesFinetuning
+
 
 class MyLightningCLI(LightningCLI):
     def add_arguments_to_parser(self, parser):
@@ -19,10 +21,14 @@ class MyLightningCLI(LightningCLI):
             }
         )
 
+
 def cli_main():
     MyLightningCLI(
-        ProtoBEATsModel, miniECS50DataModule, seed_everything_default=42
+        ProtoBEATsModel,
+        datamodule_class=None,
+        seed_everything_default=42,
     )
+
 
 if __name__ == "__main__":
     cli_lightning_logo()
