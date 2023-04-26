@@ -9,7 +9,6 @@ Issues & Questions:
 - So far, only training set is processed
 - Do we discard info by loading wavs as mono?
 - As in baseline, the script now adds 0.025 ms margins at start and tail, why?
-- All wav resampled to 16 kHz - probably not ideal
 """
 import argparse
 import os
@@ -33,9 +32,16 @@ def time_2_sample(df, sr):
     df.loc[:, "Starttime"] = df["Starttime"] - 0.025
     df.loc[:, "Endtime"] = df["Endtime"] + 0.025
 
+    df["half_duration"] = (df["Endtime"] - df["Starttime"]) / 2
+
     # get indices
-    start_sample = [int(np.floor(start * sr)) for start in df["Starttime"]]
-    end_sample = [int(np.floor(end * sr)) for end in df["Endtime"]]
+    start_sample = []
+    end_sample = []
+    for index, row in df.iterrows():
+        start_sample.append(
+            int(np.floor((row["Starttime"] - row["half_duration"]) * sr))
+        )
+        end_sample.append(int(np.floor((row["Endtime"] + row["half_duration"]) * sr)))
 
     return start_sample, end_sample
 
@@ -46,8 +52,8 @@ def prepare_training_val_data(status, path, overwrite):
     
     Training set is used for training and validating the encoder.
 
-    All positive samples are saved as separate wav files, 
-    and the relevant meta data is saved in a csv file. 
+    All positive samples are saved as separate wav files,
+    and the relevant meta data is saved in a csv file.
     """
     # Create directories for saving output
     root_dir = "/data/DCASE/Development_Set"
@@ -73,22 +79,22 @@ def prepare_training_val_data(status, path, overwrite):
     ]
 
     # loop through all meta files
-    df_train_list = [] # list from which meta df will be created
+    df_train_list = []  # list from which meta df will be created
     for file in tqdm(all_csv_files):
         # read csv file into df
         split_list = file.split("/")
         glob_cls_name = split_list[split_list.index(path) + 1]
         file_name = split_list[split_list.index(path) + 2]
         df = pd.read_csv(file, header=0, index_col=False)
-        
+
         # read audio file into y
         audio_path = file.replace("csv", "wav")
         print("Processing file name {}".format(audio_path))
-        y, fs = librosa.load(audio_path, sr=16000, mono=True)
+        y, fs = librosa.load(audio_path, mono=True)
         df_pos = df[(df == "POS").any(axis=1)]
 
         # Obtain indices for start and end of positive intervals
-        start_sample, end_sample = time_2_sample(df_pos, sr=16000)
+        start_sample, end_sample = time_2_sample(df_pos, sr=fs)
         start_time = df["Starttime"]
 
         # For csv files with a column name Call, pick up the global class name
@@ -101,6 +107,21 @@ def prepare_training_val_data(status, path, overwrite):
             ]
             cls_list = list(chain.from_iterable(cls_list))
 
+        # get average segment length for first five positives
+        average_segment_lengths = {}
+        for class_column in df:
+            if class_column in ["Audiofilename", "Starttime", "Endtime"]:
+                continue
+            if class_column == "CALL":
+                label = glob_cls_name
+            else:
+                label = class_column
+
+            first_5_pos_ind = df.index[df[class_column] == "POS"].tolist()[0:5]
+            average_segment_lengths[label] = np.average(
+                df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
+            )
+
         # Ensure all samples have both a start and end time
         assert len(start_sample) == len(end_sample)
         assert len(cls_list) == len(start_sample)
@@ -108,7 +129,7 @@ def prepare_training_val_data(status, path, overwrite):
         for index, _ in enumerate(start_sample):
             # obtain class label for current sample
             label = cls_list[index]
-            
+
             # obtain path for wav file for current sample
             file_path_out = os.path.join(
                 target_path,
@@ -135,12 +156,13 @@ def prepare_training_val_data(status, path, overwrite):
                     end_sample[index],
                     audio_path,
                     file_path_out,
+                    average_segment_lengths[label],
                 ]
             )
 
             # write wav file
             samples = y[start_sample[index] : end_sample[index]]
-            sf.write(file_path_out, samples, 16000)
+            sf.write(file_path_out, samples, fs)
 
     # save meta data to csv file
     train_df = pd.DataFrame(df_train_list)
@@ -158,6 +180,7 @@ def prepare_training_val_data(status, path, overwrite):
             "end_sample",
             "src_file",
             "filepath",
+            "segment_length",
         ],
     )
 
