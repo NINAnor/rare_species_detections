@@ -11,6 +11,7 @@ Issues & Questions:
 - As in baseline, the script now adds 0.025 ms margins at start and tail, why?
 - All wav resampled to 16 kHz - probably not ideal
 """
+import argparse
 import os
 from glob import glob
 from itertools import chain
@@ -39,7 +40,8 @@ def time_2_sample(df, sr):
     return start_sample, end_sample
 
 
-def prepare_training_data():
+def prepare_training_val_data(status, path, overwrite):
+
     """ Prepare the Training_Set
     
     Training set is used for training and validating the encoder.
@@ -50,17 +52,23 @@ def prepare_training_data():
     # Create directories for saving output
     root_dir = "/data/DCASE/Development_Set"
     target_path = "/data/DCASEfewshot"
-    if os.path.exists(target_path):
-        shutil.rmtree(target_path)
-    os.makedirs(os.path.join(target_path, "audio", "train"))
-    os.makedirs(os.path.join(target_path, "meta"))
+
+    if overwrite:
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
+
+    if not os.path.exists(os.path.join(target_path, "audio", status)):
+        os.makedirs(os.path.join(target_path, "audio", status))
+
+    if not os.path.exists(os.path.join(target_path, "meta")):
+        os.makedirs(os.path.join(target_path, "meta"))
 
     print("=== Processing training set ===")
 
     # collect all meta files, one for each audio file
     all_csv_files = [
         file
-        for path_dir, _, _ in os.walk(os.path.join(root_dir, "Training_Set"))
+        for path_dir, _, _ in os.walk(os.path.join(root_dir, path))
         for file in glob(os.path.join(path_dir, "*.csv"))
     ]
 
@@ -69,8 +77,8 @@ def prepare_training_data():
     for file in tqdm(all_csv_files):
         # read csv file into df
         split_list = file.split("/")
-        glob_cls_name = split_list[split_list.index("Training_Set") + 1]
-        file_name = split_list[split_list.index("Training_Set") + 2]
+        glob_cls_name = split_list[split_list.index(path) + 1]
+        file_name = split_list[split_list.index(path) + 2]
         df = pd.read_csv(file, header=0, index_col=False)
         
         # read audio file into y
@@ -105,7 +113,7 @@ def prepare_training_data():
             file_path_out = os.path.join(
                 target_path,
                 "audio",
-                "train",
+                status,
                 "_".join(
                     [
                         glob_cls_name,
@@ -140,7 +148,7 @@ def prepare_training_data():
         os.path.join(
             target_path,
             "meta",
-            "train.csv",
+            f"{status}.csv",
         ),
         header=[
             "filename",
@@ -157,4 +165,35 @@ def prepare_training_data():
 
 
 if __name__ == "__main__":
-    prepare_training_data()
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--status",
+        help=" 'train' or 'val' ",
+        default="train",
+        required=True,
+        type=str,
+    )
+
+    parser.add_argument(
+        "--path",
+        help=" 'Training_Set' or 'Validation_Set'",
+        default="Training_Set",
+        required=True,
+        type=str,
+    )
+
+    parser.add_argument(
+        "--overwrite",
+        help="If there's an existing folder, should it be deleted?",
+        default=False,
+        required=False,
+        type=str,
+    )
+
+    cli_args = parser.parse_args()
+
+    prepare_training_val_data(cli_args.status, cli_args.path, cli_args.overwrite)
+
+    # docker run --rm -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data dcase poetry run python data_utils/DCASEfewshot.py
