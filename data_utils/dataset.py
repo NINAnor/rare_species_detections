@@ -18,14 +18,13 @@ class AudioDataset(Dataset):
     and the list of labels is stored in a CSV file in the column "category"
     """
 
-    def __init__(self, root_dir, data_frame, transform=None, segment_length=None):
+    def __init__(self, root_dir, data_frame, transform=None):
         self.root_dir = root_dir
         self.transform = transform
         self.data_frame = data_frame
 
         self.label_encoder = LabelEncoder()
         self.label_encoder.fit(self.data_frame["category"])
-        self.segment_length = segment_length
 
     def __len__(self):
         return len(self.data_frame)
@@ -104,6 +103,7 @@ class TaskSampler(Sampler):
         n_shot: int,
         n_query: int,
         n_tasks: int,
+        tensor_length: int = 0,
     ):
         """
         Args:
@@ -119,6 +119,7 @@ class TaskSampler(Sampler):
         self.n_shot = n_shot
         self.n_query = n_query
         self.n_tasks = n_tasks
+        self.tensor_length = tensor_length
 
         self.items_per_label = {}
         for item, label in enumerate(dataset.get_labels()):
@@ -165,8 +166,16 @@ class TaskSampler(Sampler):
         """
 
         true_class_ids = list({x[1] for x in input_data})
-
-        all_images = torch.cat([x[0].unsqueeze(0) for x in input_data])
+        new_input = []
+        for x in input_data:
+            if x[0].shape[1] > self.tensor_length:
+                rand_start = torch.randint(0, x[0].shape[1] - self.tensor_length, (1,))
+                new_input.append(
+                    (x[0][:, rand_start : rand_start + self.tensor_length], x[1])
+                )
+            else:
+                new_input.append(x)
+        all_images = torch.cat([x[0].unsqueeze(0) for x in new_input])
         all_images = all_images.reshape(
             (self.n_way, self.n_shot + self.n_query, *all_images.shape[1:])
         )

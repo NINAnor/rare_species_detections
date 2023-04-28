@@ -162,12 +162,14 @@ class BEATs(nn.Module):
         fbank_mean: float = 15.41663,
         fbank_std: float = 6.55582,
     ):
-        fbank = self.preprocess(source, fbank_mean=fbank_mean, fbank_std=fbank_std)
+        # start NOTE FBG: changed input to preprocessed
+        # fbank = self.preprocess(source, fbank_mean=fbank_mean, fbank_std=fbank_std)
 
         if padding_mask is not None:
-            padding_mask = self.forward_padding_mask(fbank, padding_mask)
+            padding_mask = self.forward_padding_mask(source, padding_mask)
 
-        fbank = fbank.unsqueeze(1)
+        fbank = source.unsqueeze(1)
+        # end NOTE FBG
         features = self.patch_embedding(fbank)
         features = features.reshape(features.shape[0], features.shape[1], -1)
         features = features.transpose(1, 2)
