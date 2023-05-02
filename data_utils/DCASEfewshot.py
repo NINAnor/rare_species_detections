@@ -11,6 +11,7 @@ Issues & Questions:
 - TODO: Add denoising support
 - TODO: Test resampling
 - NOTE: Do we discard info by loading wavs as mono?
+- TODO: Check margins for val set - never features included in neg supports?
 
 
 """
@@ -29,9 +30,11 @@ import torchaudio.compliance.kaldi as ta_kaldi
 import hashlib
 import json
 import matplotlib.pyplot as plt
+from copy import copy
 
-PLOT = False
+PLOT = True
 PLOT_TOO_SHORT_SAMPLES = False
+
 
 def preprocess(
     # Adapted from BEATs
@@ -126,6 +129,9 @@ def prepare_training_val_data(
     input_features = []  # list of tuples (input tensor,label)
     save_temp_ind = 0
     for file in tqdm(all_csv_files):
+        if status == "validate":
+            input_features = []
+            labels = []
         # read csv file into df
         split_list = file.split("/")
         glob_cls_name = split_list[split_list.index(set_type) + 1]
@@ -136,12 +142,16 @@ def prepare_training_val_data(
         audio_path = file.replace("csv", "wav")
         print("Processing file name {}".format(audio_path))
         y, fs = librosa.load(audio_path, sr=None, mono=True)
+        if not resample:
+            target_fs = fs
         df = df[(df == "POS").any(axis=1)]
         df = df.reset_index()
 
         # For csv files with a column name Call, pick up the global class name
         if "CALL" in df.columns:
             cls_list = [glob_cls_name] * len(df)
+        elif "Q" in df.columns:
+            cls_list = ["POS"] * len(df)
         else:
             cls_list = [
                 df.columns[(df == "POS").loc[index]].values
@@ -154,10 +164,12 @@ def prepare_training_val_data(
         min_segment_lengths = {}
         for class_column in df:
             # get label
-            if class_column in ["Audiofilename", "Starttime", "Endtime"]:
+            if class_column in ["Audiofilename", "Starttime", "Endtime", "index"]:
                 continue
             if class_column == "CALL":
                 label = glob_cls_name
+            elif class_column == "Q":
+                label = "POS"
             else:
                 label = class_column
             # get first five positives
@@ -170,8 +182,46 @@ def prepare_training_val_data(
             min_segment_lengths[label] = np.min(
                 df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
             )
-
-        # Preprocess entire wav
+        if status == "validate":
+            # copy df and slide over entire file to obtain features & labels
+            df_for_sliding = copy(df)
+            # TODO: create file with features from sliding over entire file
+            # reduce df to 5 lines and class list
+            df = df.head(5)
+            neg_starttimes = []
+            neg_endtimes = []
+            last_pos_end_time = 0.0
+            q_labels = []
+            for sample_ind, row in df.iterrows():
+                neg_starttimes.append(last_pos_end_time)
+                new_neg_endtime = row["Starttime"] - 0.1
+                if sample_ind > 0:
+                    assert new_neg_endtime > df["Endtime"][sample_ind - 1]
+                else:
+                    new_neg_endtime = 0.0 if new_neg_endtime < 0 else new_neg_endtime
+                neg_endtimes.append(new_neg_endtime)
+                last_pos_end_time = row["Endtime"] + 0.1
+                if sample_ind < 4:
+                    last_pos_end_time = (
+                        row["Endtime"]
+                        if last_pos_end_time > df["Starttime"][sample_ind + 1]
+                        else last_pos_end_time
+                    )
+                q_labels.append("NEG")
+                neg_starttimes.append(row["Starttime"])
+                neg_endtimes.append(row["Endtime"])
+                q_labels.append("POS")
+            df = pd.DataFrame(
+                {
+                    "Audiofilename": [file_name] * len(neg_starttimes),
+                    "Starttime": neg_starttimes,
+                    "Endtime": neg_endtimes,
+                    "Q": q_labels,
+                }
+            )
+            cls_list = df["Q"].values
+            min_segment_lengths["NEG"] = min_segment_lengths["POS"]
+            # add 5 negatives to df and clslist
 
         # for each tagged sample
         for ind, _ in df.iterrows():
@@ -186,12 +236,17 @@ def prepare_training_val_data(
             frame_shift = np.round(min_segment_lengths[label] / tensor_length * 1000)
             frame_shift = 1 if frame_shift < 1 else frame_shift
             start_waveform = int((df["Starttime"][ind] - extra_time) * fs)
-            start_waveform = 0 if start_waveform < 0 else start_waveform
+
             end_waveform = int((df["Endtime"][ind] + extra_time) * fs)
             end_waveform = len(y) if len(y) < end_waveform else end_waveform
+            if start_waveform < 0:
+                extra_time = (extra_time * fs + start_waveform) / fs
+                start_waveform = 0
+            current_segment = y[None, start_waveform:end_waveform]
             if resample:
-                y = librosa.resample(y, orig_sr=fs, target_sr=target_fs)
-                fs = target_fs
+                current_segment = librosa.resample(
+                    current_segment, orig_sr=fs, target_sr=target_fs
+                )
 
             # TODO normalize
             assert not normalize
@@ -202,18 +257,18 @@ def prepare_training_val_data(
             # obtain mel bins
             fbank = preprocess(
                 None,
-                torch.Tensor(y[None, start_waveform:end_waveform]),
-                sample_frequency=fs,
+                torch.Tensor(current_segment),
+                sample_frequency=target_fs,
                 frame_length=frame_length,
                 frame_shift=frame_shift,
             )
             data = fbank.data[0].T
             # select the relevant segment (without the large margins)
-            x_start = int(
-                np.round(
-                    (extra_time - min_segment_lengths[label] / 3) / frame_shift * 1000
-                )
-            )
+            if status == "validate":
+                extra_margin = 0
+            else:
+                extra_margin = min_segment_lengths[label] / 3
+            x_start = int(np.round((extra_time - extra_margin) / frame_shift * 1000))
             x_start = 0 if x_start < 0 else x_start
             x_end = int(
                 np.round(
@@ -221,7 +276,7 @@ def prepare_training_val_data(
                         df["Endtime"][ind]
                         - df["Starttime"][ind]
                         + extra_time
-                        + min_segment_lengths[label] / 3
+                        + extra_margin
                     )
                     / frame_shift
                     * 1000
@@ -242,7 +297,7 @@ def prepare_training_val_data(
                     + " had to be extended. FS="
                     + str(fs)
                 )
-                temp_plot = PLOT_TOO_SHORT_SAMPLES 
+                temp_plot = PLOT_TOO_SHORT_SAMPLES
                 x_end = x_start + tensor_length
                 if x_end > data.shape[1]:
                     x_end = data.shape[1]
@@ -271,6 +326,20 @@ def prepare_training_val_data(
                         + ".png",
                     )
                 )
+            if status == "validate" and len(labels) == len(df):
+                np.savez(
+                    os.path.join(
+                        target_path, "audio", "data_" + os.path.splitext(file_name)[0]
+                    ),
+                    *input_features
+                )
+                np.save(
+                    os.path.join(
+                        target_path, "audio", "labels_" + os.path.splitext(file_name)[0]
+                    ),
+                    np.asarray(labels),
+                )
+                break
 
         if len(labels) // 1000 > save_temp_ind + 1:
             np.savez(
@@ -301,7 +370,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--status",
-        help=" 'train' or 'val' ",
+        help=" 'train' or 'validate' ",
         default="train",
         required=False,
         type=str,
@@ -320,14 +389,14 @@ if __name__ == "__main__":
         help="If there's an existing folder, should it be deleted?",
         default=False,
         required=False,
-        type=bool,
+        action="store_true",
     )
     parser.add_argument(
         "--normalize",
         help="Normalize the waveform during preprocessing?",
         default=False,
         required=False,
-        type=bool,
+        action="store_true",
     )
 
     parser.add_argument(
@@ -335,7 +404,7 @@ if __name__ == "__main__":
         help="Resample the waveform during preprocessing?",
         default=False,
         required=False,
-        type=bool,
+        action="store_true",
     )
     parser.add_argument(
         "--target_fs",
@@ -357,7 +426,7 @@ if __name__ == "__main__":
         help="Should waveform be denoised during preprocessing?",
         default=False,
         required=False,
-        type=bool,
+        action="store_true",
     )
     parser.add_argument(
         "--tensor_length",
@@ -366,8 +435,13 @@ if __name__ == "__main__":
         required=False,
         type=int,
     )
-
+    # check input
     cli_args = parser.parse_args()
+    assert cli_args.status == "validate" or cli_args.status == "train"
+    if cli_args.status == "validate":
+        assert cli_args.set_type == "Validation_Set"
+    elif cli_args.status == "train":
+        assert cli_args.set_type == "Training_Set"
 
     prepare_training_val_data(
         cli_args.status,
