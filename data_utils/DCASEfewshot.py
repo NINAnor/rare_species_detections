@@ -306,8 +306,8 @@ def prepare_training_val_data(
                 df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
             )
         if status == "validate":
-            # TODO resample
-            assert not resample
+            if resample:
+                y = librosa.resample(y, orig_sr=fs, target_sr=target_fs)
 
             # TODO normalize
             assert not normalize
