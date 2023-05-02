@@ -87,142 +87,8 @@ def prepare_training_val_data(
     pickle. Separate directories are created for different params, so
     that they can be found again during training.
     """
-    # Root directory of data to be processed
-    root_dir = "/data/DCASE/Development_Set"
 
-    # Create directories for saving
-
-    my_hash_dict = {
-        "resample": resample,
-        "denoise": denoise,
-        "normalize": normalize,
-        "frame_length": frame_length,
-        "tensor_length": tensor_length,
-        "set_type": set_type,
-    }
-    if resample:
-        my_hash_dict["tartget_fs"] = target_fs
-    hash_dir_name = hashlib.sha1(
-        json.dumps(my_hash_dict, sort_keys=True).encode()
-    ).hexdigest()
-    target_path = os.path.join("/data/DCASEfewshot", status, hash_dir_name)
-    if overwrite:
-        if os.path.exists(target_path):
-            shutil.rmtree(target_path)
-
-    if not os.path.exists(os.path.join(target_path, "audio")):
-        os.makedirs(os.path.join(target_path, "audio"))
-
-    if not os.path.exists(os.path.join(target_path, "plots")):
-        os.makedirs(os.path.join(target_path, "plots"))
-
-    print("=== Processing training set ===")
-    # collect all meta files, one for each audio file
-    all_csv_files = [
-        file
-        for path_dir, _, _ in os.walk(os.path.join(root_dir, set_type))
-        for file in glob(os.path.join(path_dir, "*.csv"))
-    ]
-
-    # loop through all meta files
-    labels = []
-    input_features = []  # list of tuples (input tensor,label)
-    save_temp_ind = 0
-    for file in tqdm(all_csv_files):
-        if status == "validate":
-            input_features = []
-            labels = []
-        # read csv file into df
-        split_list = file.split("/")
-        glob_cls_name = split_list[split_list.index(set_type) + 1]
-        file_name = split_list[split_list.index(set_type) + 2]
-        df = pd.read_csv(file, header=0, index_col=False)
-
-        # read audio file into y
-        audio_path = file.replace("csv", "wav")
-        print("Processing file name {}".format(audio_path))
-        y, fs = librosa.load(audio_path, sr=None, mono=True)
-        if not resample:
-            target_fs = fs
-        df = df[(df == "POS").any(axis=1)]
-        df = df.reset_index()
-
-        # For csv files with a column name Call, pick up the global class name
-        if "CALL" in df.columns:
-            cls_list = [glob_cls_name] * len(df)
-        elif "Q" in df.columns:
-            cls_list = ["POS"] * len(df)
-        else:
-            cls_list = [
-                df.columns[(df == "POS").loc[index]].values
-                for index, row in df.iterrows()
-            ]
-            cls_list = list(chain.from_iterable(cls_list))
-
-        # get average/min segment length for first five positives
-        average_segment_lengths = {}
-        min_segment_lengths = {}
-        for class_column in df:
-            # get label
-            if class_column in ["Audiofilename", "Starttime", "Endtime", "index"]:
-                continue
-            if class_column == "CALL":
-                label = glob_cls_name
-            elif class_column == "Q":
-                label = "POS"
-            else:
-                label = class_column
-            # get first five positives
-            first_5_pos_ind = df.index[df[class_column] == "POS"].tolist()[0:5]
-            if len(first_5_pos_ind) < 5:
-                continue
-            average_segment_lengths[label] = np.average(
-                df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
-            )
-            min_segment_lengths[label] = np.min(
-                df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
-            )
-        if status == "validate":
-            # copy df and slide over entire file to obtain features & labels
-            df_for_sliding = copy(df)
-            # TODO: create file with features from sliding over entire file
-            # reduce df to 5 lines and class list
-            df = df.head(5)
-            neg_starttimes = []
-            neg_endtimes = []
-            last_pos_end_time = 0.0
-            q_labels = []
-            for sample_ind, row in df.iterrows():
-                neg_starttimes.append(last_pos_end_time)
-                new_neg_endtime = row["Starttime"] - 0.1
-                if sample_ind > 0:
-                    assert new_neg_endtime > df["Endtime"][sample_ind - 1]
-                else:
-                    new_neg_endtime = 0.0 if new_neg_endtime < 0 else new_neg_endtime
-                neg_endtimes.append(new_neg_endtime)
-                last_pos_end_time = row["Endtime"] + 0.1
-                if sample_ind < 4:
-                    last_pos_end_time = (
-                        row["Endtime"]
-                        if last_pos_end_time > df["Starttime"][sample_ind + 1]
-                        else last_pos_end_time
-                    )
-                q_labels.append("NEG")
-                neg_starttimes.append(row["Starttime"])
-                neg_endtimes.append(row["Endtime"])
-                q_labels.append("POS")
-            df = pd.DataFrame(
-                {
-                    "Audiofilename": [file_name] * len(neg_starttimes),
-                    "Starttime": neg_starttimes,
-                    "Endtime": neg_endtimes,
-                    "Q": q_labels,
-                }
-            )
-            cls_list = df["Q"].values
-            min_segment_lengths["NEG"] = min_segment_lengths["POS"]
-            # add 5 negatives to df and clslist
-
+    def preprocess_df(df):
         # for each tagged sample
         for ind, _ in df.iterrows():
             temp_plot = False
@@ -329,40 +195,244 @@ def prepare_training_val_data(
             if status == "validate" and len(labels) == len(df):
                 np.savez(
                     os.path.join(
-                        target_path, "audio", "data_" + os.path.splitext(file_name)[0]
+                        target_path,
+                        "audio",
+                        "support_data_" + os.path.splitext(file_name)[0],
                     ),
                     *input_features
                 )
                 np.save(
                     os.path.join(
-                        target_path, "audio", "labels_" + os.path.splitext(file_name)[0]
+                        target_path,
+                        "audio",
+                        "support_labels_" + os.path.splitext(file_name)[0],
                     ),
                     np.asarray(labels),
                 )
                 break
 
-        if len(labels) // 1000 > save_temp_ind + 1:
+    # Root directory of data to be processed
+    root_dir = "/data/DCASE/Development_Set"
+
+    # Create directories for saving
+    my_hash_dict = {
+        "resample": resample,
+        "denoise": denoise,
+        "normalize": normalize,
+        "frame_length": frame_length,
+        "tensor_length": tensor_length,
+        "set_type": set_type,
+    }
+    if resample:
+        my_hash_dict["tartget_fs"] = target_fs
+    hash_dir_name = hashlib.sha1(
+        json.dumps(my_hash_dict, sort_keys=True).encode()
+    ).hexdigest()
+    target_path = os.path.join("/data/DCASEfewshot", status, hash_dir_name)
+    if overwrite:
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
+
+    if not os.path.exists(os.path.join(target_path, "audio")):
+        os.makedirs(os.path.join(target_path, "audio"))
+
+    if not os.path.exists(os.path.join(target_path, "plots")):
+        os.makedirs(os.path.join(target_path, "plots"))
+
+    print("=== Processing data ===")
+    # collect all meta files, one for each audio file
+    all_csv_files = [
+        file
+        for path_dir, _, _ in os.walk(os.path.join(root_dir, set_type))
+        for file in glob(os.path.join(path_dir, "*.csv"))
+    ]
+
+    # loop through all meta files
+    labels = []
+    input_features = []  # list of tuples (input tensor,label)
+    save_temp_ind = 0
+    for file in tqdm(all_csv_files):
+        if status == "validate":
+            input_features = []
+            labels = []
+        # read csv file into df
+        split_list = file.split("/")
+        glob_cls_name = split_list[split_list.index(set_type) + 1]
+        file_name = split_list[split_list.index(set_type) + 2]
+        df = pd.read_csv(file, header=0, index_col=False)
+
+        # read audio file into y
+        audio_path = file.replace("csv", "wav")
+        print("Processing file name {}".format(audio_path))
+        y, fs = librosa.load(audio_path, sr=None, mono=True)
+        if not resample:
+            target_fs = fs
+        df = df[(df == "POS").any(axis=1)]
+        df = df.reset_index()
+
+        # For csv files with a column name Call, pick up the global class name
+        if "CALL" in df.columns:
+            cls_list = [glob_cls_name] * len(df)
+        elif "Q" in df.columns:
+            cls_list = ["POS"] * len(df)
+        else:
+            cls_list = [
+                df.columns[(df == "POS").loc[index]].values
+                for index, row in df.iterrows()
+            ]
+            cls_list = list(chain.from_iterable(cls_list))
+
+        # get average/min segment length for first five positives
+        average_segment_lengths = {}
+        min_segment_lengths = {}
+        for class_column in df:
+            # get label
+            if class_column in ["Audiofilename", "Starttime", "Endtime", "index"]:
+                continue
+            if class_column == "CALL":
+                label = glob_cls_name
+            elif class_column == "Q":
+                label = "POS"
+            else:
+                label = class_column
+            # get first five positives
+            first_5_pos_ind = df.index[df[class_column] == "POS"].tolist()[0:5]
+            if len(first_5_pos_ind) < 5:
+                continue
+            average_segment_lengths[label] = np.average(
+                df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
+            )
+            min_segment_lengths[label] = np.min(
+                df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
+            )
+        if status == "validate":
+            # TODO resample
+            assert not resample
+
+            # TODO normalize
+            assert not normalize
+
+            # TODO denoise
+            assert not denoise
+
+            # CREATE QUERY SETS
+            # obtain file specific frame_shift
+            frame_shift = np.round(min_segment_lengths["POS"] / tensor_length * 1000)
+            frame_shift = 1 if frame_shift < 1 else frame_shift
+            # get mel for entire file
+            fbank = preprocess(
+                None,
+                torch.Tensor(y[None, :]),
+                sample_frequency=target_fs,
+                frame_length=frame_length,
+                frame_shift=frame_shift,
+            )
+            data = fbank.data[0].T
+            # obtain windows and their labels
+            segment_overlap = 0.5
+            segment_hop = int(round(tensor_length * segment_overlap))
+            segment_ind = 0
+            input_features = []
+            labels = []
+            interval_array = pd.arrays.IntervalArray.from_arrays(
+                df["Starttime"].values, df["Endtime"].values
+            )
+            segment_end_ind = 0
+            while segment_end_ind < data.shape[1]:
+                # add feature
+                segment_start_ind = segment_ind * segment_hop
+                segment_end_ind = segment_start_ind + tensor_length
+                input_feature = data[:, segment_start_ind:segment_end_ind]
+                input_features.append(input_feature.numpy())
+                # check if included in df
+                segment_interval = pd.Interval(
+                    segment_start_ind / 1000, segment_end_ind / 1000
+                )
+                is_included = np.any(interval_array.overlaps(segment_interval))
+                # add label
+                label = "POS" if is_included else "NEG"
+                labels.append(label)
+                segment_ind += 1
+                if PLOT:
+                    plt.imshow(input_feature, cmap="hot", interpolation="nearest")
+                    plt.title(label)
+                    plt.savefig(
+                        os.path.join(
+                            target_path,
+                            "plots",
+                            "_".join(
+                                [
+                                    "query",
+                                    glob_cls_name,
+                                    os.path.splitext(file_name)[0],
+                                    label,
+                                    str(segment_start_ind),
+                                ],
+                            )
+                            + ".png",
+                        )
+                    )
+
             np.savez(
-                os.path.join(target_path, "audio", "data_" + str(save_temp_ind)),
+                os.path.join(
+                    target_path, "audio", "query_data_" + os.path.splitext(file_name)[0]
+                ),
                 *input_features
             )
             np.save(
-                os.path.join(target_path, "audio", "labels_" + str(save_temp_ind)),
+                os.path.join(
+                    target_path,
+                    "audio",
+                    "query_labels_" + os.path.splitext(file_name)[0],
+                ),
                 np.asarray(labels),
             )
-            save_temp_ind += 1
+            input_features = []
+            labels = []
+            # CREATE SUPPORT SETS
+            # reduce df to 5 lines and class list
+            df = df.head(5)
+            neg_starttimes = []
+            neg_endtimes = []
+            last_pos_end_time = 0.0
+            q_labels = []
+            for sample_ind, row in df.iterrows():
+                neg_starttimes.append(last_pos_end_time)
+                new_neg_endtime = row["Starttime"] - 0.1
+                if sample_ind > 0:
+                    assert new_neg_endtime > df["Endtime"][sample_ind - 1]
+                else:
+                    new_neg_endtime = 0.0 if new_neg_endtime < 0 else new_neg_endtime
+                neg_endtimes.append(new_neg_endtime)
+                last_pos_end_time = row["Endtime"] + 0.1
+                if sample_ind < 4:
+                    last_pos_end_time = (
+                        row["Endtime"]
+                        if last_pos_end_time > df["Starttime"][sample_ind + 1]
+                        else last_pos_end_time
+                    )
+                q_labels.append("NEG")
+                neg_starttimes.append(row["Starttime"])
+                neg_endtimes.append(row["Endtime"])
+                q_labels.append("POS")
+            df = pd.DataFrame(
+                {
+                    "Audiofilename": [file_name] * len(neg_starttimes),
+                    "Starttime": neg_starttimes,
+                    "Endtime": neg_endtimes,
+                    "Q": q_labels,
+                }
+            )
+            cls_list = df["Q"].values
+            min_segment_lengths["NEG"] = min_segment_lengths["POS"]
 
-    # convert to df with category column for labels
-    # data_frame = pd.DataFrame(input_features, columns=["feature", "category"])
+        preprocess_df(df)
     # save preprocessed data
-    # data_frame.to_hdf(os.path.join(target_path, "audio", "data.h5"), key="df", mode="w")
-    np.savez(os.path.join(target_path, "audio", "data"), *input_features)
-    np.save(os.path.join(target_path, "audio", "labels"), np.asarray(labels))
+    if status == "train":
+        np.savez(os.path.join(target_path, "audio", "data"), *input_features)
+        np.save(os.path.join(target_path, "audio", "labels"), np.asarray(labels))
 
-    # input_features = np.load(os.path.join(target_path, "audio", "data.npz"))
-    # labels = np.load(os.path.join(target_path, "audio", "labels.npy"))
-    # print(labels)
-    print(" Feature extraction for training set complete")
+    print(" Feature extraction complete")
 
 
 if __name__ == "__main__":
