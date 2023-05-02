@@ -1,0 +1,26 @@
+#############
+# Data path #
+#############
+support_data_path: "/data/DCASEfewshot/audio/eval/"
+df_labels_path: "/data/DCASEfewshot/meta/eval.csv"
+data_to_predict: "/data/"
+save_dir: "/data/"
+
+####################
+# Model parameters #
+####################
+model_path: "/data/model/..."
+
+##################################
+# Prediction segments parameters #
+##################################
+l_segments: 3
+overlap: 0
+min_len: 3
+sample_rate: 16000
+
+#########################
+# DataLoader parameters #
+#########################
+batch_size: 16
+num_workers: 8
