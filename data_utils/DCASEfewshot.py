@@ -32,7 +32,7 @@ import json
 import matplotlib.pyplot as plt
 from copy import copy
 
-PLOT = True
+PLOT = False
 PLOT_TOO_SHORT_SAMPLES = False
 
 
