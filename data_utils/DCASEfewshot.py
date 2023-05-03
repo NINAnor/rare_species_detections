@@ -29,11 +29,18 @@ import soundfile as sf
 import torchaudio.compliance.kaldi as ta_kaldi
 import hashlib
 import json
+import csv
 import matplotlib.pyplot as plt
 from copy import copy
 
 PLOT = False
 PLOT_TOO_SHORT_SAMPLES = False
+
+
+def normalize_mono(samples):
+    current_max = max(np.amax(samples), -np.amin(samples))
+    scale = 0.99 / current_max
+    return np.multiply(samples, scale)
 
 
 def preprocess(
@@ -113,9 +120,11 @@ def prepare_training_val_data(
                 current_segment = librosa.resample(
                     current_segment, orig_sr=fs, target_sr=target_fs
                 )
+                # only resampling segment, so overall fs doesn't change
 
-            # TODO normalize
-            assert not normalize
+            # normalize
+            if normalize:
+                current_segment = normalize_mono(current_segment)
 
             # TODO denoise
             assert not denoise
@@ -308,17 +317,26 @@ def prepare_training_val_data(
         if status == "validate":
             if resample:
                 y = librosa.resample(y, orig_sr=fs, target_sr=target_fs)
+                fs = target_fs
 
-            # TODO normalize
-            assert not normalize
+            if normalize:
+                y = normalize_mono(y)
 
             # TODO denoise
             assert not denoise
 
             # CREATE QUERY SETS
-            # obtain file specific frame_shift
+            # obtain file specific frame_shift and save to meta.csv
             frame_shift = np.round(min_segment_lengths["POS"] / tensor_length * 1000)
             frame_shift = 1 if frame_shift < 1 else frame_shift
+            with open(
+                os.path.join(target_path, "audio", "meta.csv"),
+                "a",
+                newline="",
+                encoding="utf-8",
+            ) as my_file:
+                wr = csv.writer(my_file, delimiter=",")
+                wr.writerow([frame_shift, os.path.splitext(file_name)[0]])
             # get mel for entire file
             fbank = preprocess(
                 None,
