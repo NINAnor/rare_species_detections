@@ -115,7 +115,7 @@ def predict_labels_query(model, queryloader, prototypes, l_segments, offset):
         classification_scores = calculate_distance(q_embedding, prototypes)
 
         # Get the labels (either POS or NEG):
-        predicted_labels = torch.max(classification_scores, 0)[1]
+        predicted_labels = torch.max(classification_scores, 1)[1] # The dim where the distance to prototype is stored is 1
         print(predicted_labels)
 
         # Return the labels, begin and end of the detection
@@ -124,7 +124,7 @@ def predict_labels_query(model, queryloader, prototypes, l_segments, offset):
         begins.append(begin)
         ends.append(end)
 
-    pred_labels = torch.cat(pred_labels)
+    pred_labels = torch.cat(pred_labels, dim=0)
     labels = torch.cat(labels, dim=0)
 
     return pred_labels, labels, begins, ends
@@ -138,9 +138,8 @@ def calculate_distance(z_query, z_proto):
     dists = []
     for q in z_query:
         q_dists = euclidean_distance(q.unsqueeze(0), z_proto)
-        dists.append(q_dists)
+        dists.append(q_dists.unsqueeze(0)) # Contrary to prototraining I need to add a dimension to store the 
     dists = torch.cat(dists, dim=0)
-    print(dists.shape)
 
     # We drop the last dimension without changing the gradients 
     dists = dists.mean(dim=2).squeeze()
@@ -233,7 +232,10 @@ if __name__ == "__main__":
         # Get the results
         print("===DOING THE PREDICTION FOR {}===".format(filename))
         predicted_labels, labels, begins, ends = predict_labels_query(model, queryLoader, prototypes, l_segments=cfg["l_segments"], offset=0)
-        compute_scores(predicted_labels=predicted_labels.detach().to_numpy(), gt_labels=labels.detach().to_numpy())
+        print(predicted_labels)
+        print(labels)
+        
+        compute_scores(predicted_labels=predicted_labels.to('cpu').numpy(), gt_labels=labels.to('cpu').numpy())
 
         # Just for the evaluation dataset
         #result_POS = result[result["PredLabels"] == "POS"].drop(["PredLabels"], axis=1)
