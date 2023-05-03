@@ -1,15 +1,16 @@
 #############
 # Data path #
 #############
-support_data_path: "/data/DCASEfewshot/audio/eval/"
-df_labels_path: "/data/DCASEfewshot/meta/eval.csv"
-data_to_predict: "/data/"
+support_data_path: "/data/DCASEfewshot/validate/**/support_data_*.npz"
+support_labels_path: "/data/DCASEfewshot/validate/**/support_labels_*.npy"
+query_data_path: "/data/DCASEfewshot/validate/**/query_data_*.npz"
+query_labels_path: "/data/DCASEfewshot/validate/**/query_labels_*.npy"
 save_dir: "/data/"
 
 ####################
 # Model parameters #
 ####################
-model_path: "/data/model/..."
+model_path: "/app/lightning_logs/version_19/checkpoints/epoch=14-step=1500.ckpt"
 
 ##################################
 # Prediction segments parameters #
