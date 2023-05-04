@@ -6,12 +6,8 @@ Based on adapted code from DL baseline system.
 WARNING: script deletes earlier prepared data.
 
 Issues & Questions:
-- TODO: for validation, process NEG/POS
-- TODO: Add normalization support
 - TODO: Add denoising support
-- TODO: Test resampling
 - NOTE: Do we discard info by loading wavs as mono?
-- TODO: Check margins for val set - never features included in neg supports?
 
 
 """
@@ -139,7 +135,7 @@ def prepare_training_val_data(
             )
             data = fbank.data[0].T
             # select the relevant segment (without the large margins)
-            if status == "validate":
+            if status == "validate" or status == "test":
                 extra_margin = 0
             else:
                 extra_margin = min_segment_lengths[label] / 3
@@ -158,6 +154,7 @@ def prepare_training_val_data(
                 )
             )
             x_end = data.shape[1] if x_end > data.shape[1] else x_end
+            input_feature = data[:, x_start:x_end]
             # ensure minimal length equals tensor length
             if x_end - x_start < tensor_length:
                 print(
@@ -169,15 +166,27 @@ def prepare_training_val_data(
                             str(df["Starttime"][ind]),
                         ],
                     )
-                    + " had to be extended. FS="
+                    + " had to be repeated. FS="
                     + str(fs)
                 )
                 temp_plot = PLOT_TOO_SHORT_SAMPLES
-                x_end = x_start + tensor_length
-                if x_end > data.shape[1]:
-                    x_end = data.shape[1]
-                    x_start = x_end - tensor_length
-            input_feature = data[:, x_start:x_end]
+                # x_end = x_start + tensor_length
+                # if x_end > data.shape[1]:
+                #     x_end = data.shape[1]
+                #     x_start = x_end - tensor_length
+                flip_flop_i = 0
+                while input_feature.shape[1] < tensor_length:
+                    input_feature = torch.cat(
+                        (
+                            input_feature,
+                            torch.flip(input_feature, [1]),
+                        ),
+                        1,
+                    )
+                    flip_flop_i += 1
+                # input_feature = input_feature.repeat(
+                #     (1, tensor_length // input_feature.shape[1] + 1)
+                # )
             assert input_feature.shape[1] >= tensor_length
             # store feature
             input_features.append(input_feature.numpy())
@@ -307,14 +316,17 @@ def prepare_training_val_data(
             # get first five positives
             first_5_pos_ind = df.index[df[class_column] == "POS"].tolist()[0:5]
             if len(first_5_pos_ind) < 5:
-                continue
+                if status == "train":
+                    continue
+                else:
+                    assert 1 == 0
             average_segment_lengths[label] = np.average(
                 df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
             )
             min_segment_lengths[label] = np.min(
                 df["Endtime"][first_5_pos_ind] - df["Starttime"][first_5_pos_ind]
             )
-        if status == "validate":
+        if status == "validate" or status == "test":
             if resample:
                 y = librosa.resample(y, orig_sr=fs, target_sr=target_fs)
                 fs = target_fs
@@ -361,6 +373,20 @@ def prepare_training_val_data(
                 segment_start_ind = segment_ind * segment_hop
                 segment_end_ind = segment_start_ind + tensor_length
                 input_feature = data[:, segment_start_ind:segment_end_ind]
+                # pad too short features (at end of file) with zeros
+                if not input_feature.shape[1] == tensor_length:
+                    input_feature = torch.cat(
+                        (
+                            input_feature,
+                            torch.zeros(
+                                (
+                                    input_feature.shape[0],
+                                    tensor_length - input_feature.shape[1],
+                                )
+                            ),
+                        ),
+                        1,
+                    )
                 input_features.append(input_feature.numpy())
                 # check if included in df
                 segment_interval = pd.Interval(
@@ -414,25 +440,48 @@ def prepare_training_val_data(
             neg_endtimes = []
             last_pos_end_time = 0.0
             q_labels = []
+            first_pos_starts_at_zero = False
             for sample_ind, row in df.iterrows():
-                neg_starttimes.append(last_pos_end_time)
+                if row["Starttime"] == 0:
+                    first_pos_starts_at_zero = True
+                # get endtime for negative sample
                 new_neg_endtime = row["Starttime"] - 0.1
-                if sample_ind > 0:
-                    assert new_neg_endtime > df["Endtime"][sample_ind - 1]
-                else:
-                    new_neg_endtime = 0.0 if new_neg_endtime < 0 else new_neg_endtime
+                # ensure neg sample has starts before it ends
+                if new_neg_endtime <= last_pos_end_time:
+                    # if not select 2ms centered segment to be repeated later
+                    end_neg = row["Starttime"]
+                    if sample_ind == 0:
+                        start_neg = 0
+                    else:
+                        start_neg = df["Endtime"][sample_ind - 1]
+                    last_pos_end_time = start_neg + (end_neg - start_neg) / 2 - 0.01
+                    new_neg_endtime = last_pos_end_time + 0.02
+                # append neg segment
+                neg_starttimes.append(last_pos_end_time)
                 neg_endtimes.append(new_neg_endtime)
+                q_labels.append("NEG")
+                # select new starttime for next negative
                 last_pos_end_time = row["Endtime"] + 0.1
+                # ensure neg starttime doesn't start after onset new pos
                 if sample_ind < 4:
                     last_pos_end_time = (
                         row["Endtime"]
                         if last_pos_end_time > df["Starttime"][sample_ind + 1]
                         else last_pos_end_time
                     )
-                q_labels.append("NEG")
-                neg_starttimes.append(row["Starttime"])
-                neg_endtimes.append(row["Endtime"])
+                # append pos segment
+                duration = row["Endtime"] - row["Starttime"]
+                margin = min_segment_lengths["POS"] / 3
+                if duration + 2 * margin < tensor_length * frame_shift / 1000:
+                    margin = tensor_length * frame_shift / 1000 - duration
+
+                pos_start_time = (
+                    0 if row["Starttime"] - margin < 0 else row["Starttime"] - margin
+                )
+                neg_starttimes.append(pos_start_time)
+                neg_endtimes.append(row["Endtime"] + margin)
                 q_labels.append("POS")
+
             df = pd.DataFrame(
                 {
                     "Audiofilename": [file_name] * len(neg_starttimes),
@@ -441,8 +490,15 @@ def prepare_training_val_data(
                     "Q": q_labels,
                 }
             )
+            if first_pos_starts_at_zero:
+                max_neg_idx = (
+                    df[df["Q"] == "NEG"]["Endtime"] - df[df["Q"] == "NEG"]["Starttime"]
+                ).idxmax()
+                df["Starttime"][0] = df["Starttime"][max_neg_idx]
+                df["Endtime"][0] = df["Endtime"][max_neg_idx]
             cls_list = df["Q"].values
             min_segment_lengths["NEG"] = min_segment_lengths["POS"]
+            assert np.all(df["Endtime"] - df["Starttime"] > 0)
 
         preprocess_df(df)
     # save preprocessed data
@@ -466,7 +522,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--set_type",
-        help=" 'Training_Set' or 'Validation_Set'",
+        help=" 'Training_Set' or 'Validation_Set' or 'Evaluation_Set",
         default="Training_Set",
         required=False,
         type=str,
@@ -525,11 +581,17 @@ if __name__ == "__main__":
     )
     # check input
     cli_args = parser.parse_args()
-    assert cli_args.status == "validate" or cli_args.status == "train"
+    assert (
+        cli_args.status == "validate"
+        or cli_args.status == "train"
+        or cli_args.status == "test"
+    )
     if cli_args.status == "validate":
         assert cli_args.set_type == "Validation_Set"
     elif cli_args.status == "train":
         assert cli_args.set_type == "Training_Set"
+    elif cli_args.status == "test":
+        assert cli_args.set_type == "Evaluation_Set"
 
     prepare_training_val_data(
         cli_args.status,
