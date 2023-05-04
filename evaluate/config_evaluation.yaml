@@ -5,6 +5,7 @@ support_data_path: "/data/DCASEfewshot/validate/**/support_data_*.npz"
 support_labels_path: "/data/DCASEfewshot/validate/**/support_labels_*.npy"
 query_data_path: "/data/DCASEfewshot/validate/**/query_data_*.npz"
 query_labels_path: "/data/DCASEfewshot/validate/**/query_labels_*.npy"
+meta_df_path: "/data/DCASEfewshot/validate/81dcab48a75118471c6b1ae3816ead3b568024e5/audio/meta.csv"
 save_dir: "/data/"
 
 ####################
@@ -15,9 +16,8 @@ model_path: "/app/lightning_logs/version_19/checkpoints/epoch=14-step=1500.ckpt"
 ##################################
 # Prediction segments parameters #
 ##################################
-l_segments: 3
-overlap: 0
-min_len: 3
+l_segments: 128
+overlap: 0.5
 sample_rate: 16000
 
 #########################
