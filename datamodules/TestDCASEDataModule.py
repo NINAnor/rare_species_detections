@@ -27,7 +27,7 @@ class AudioDatasetDCASE(Dataset):
             self.label_dict = label_dict
         else:
             self.label_encoder.fit(self.data_frame["category"])
-            self.label_dict = dict(zip(self.label_encoder.transform(self.label_encoder.classes_), self.label_encoder.classes_))
+            self.label_dict = dict(zip(self.label_encoder.classes_, self.label_encoder.transform(self.label_encoder.classes_)))
 
     def __len__(self):
         return len(self.data_frame)
