@@ -105,6 +105,7 @@ def predict_labels_query(model, queryloader, prototypes, l_segments, offset):
         # Get the embeddings for the query
         feature, label = data
         feature = feature.to("cuda")
+        print(feature.shape)
         q_embedding, _ = model.get_embeddings(feature, padding_mask=None)
 
         # Calculate beginTime and endTime for each segment
@@ -115,8 +116,7 @@ def predict_labels_query(model, queryloader, prototypes, l_segments, offset):
         classification_scores = calculate_distance(q_embedding, prototypes)
 
         # Get the labels (either POS or NEG):
-        predicted_labels = torch.max(classification_scores, 1)[1] # The dim where the distance to prototype is stored is 1
-        print(predicted_labels)
+        predicted_labels = torch.max(classification_scores, 0)[1] # The dim where the distance to prototype is stored is 1
 
         # Return the labels, begin and end of the detection
         pred_labels.append(predicted_labels)
@@ -124,8 +124,8 @@ def predict_labels_query(model, queryloader, prototypes, l_segments, offset):
         begins.append(begin)
         ends.append(end)
 
-    pred_labels = torch.cat(pred_labels, dim=0)
-    labels = torch.cat(labels, dim=0)
+    pred_labels = torch.tensor(pred_labels)
+    labels = torch.tensor(labels)
 
     return pred_labels, labels, begins, ends
 
@@ -160,11 +160,15 @@ def compute_scores(predicted_labels, gt_labels):
 
 def write_results(filename, predicted_labels, begins, ends):
     # Write the result as a dataframe and filter out the "NEG" samples
-
     name = np.repeat(filename,len(begins))
-    name_arr = np.append(name_arr,name)
+    #name_arr = np.append(name_arr,name)
 
-    df_out = pd.DataFrame({'Audiofilename':name_arr,
+    print(len(name))
+    print(len(predicted_labels))
+    print(len(begins))
+    print(len(ends))
+
+    df_out = pd.DataFrame({'Audiofilename':name,
                            'Starttime':begins, 
                            'Endtime':ends, 
                            'PredLabels':predicted_labels})
@@ -227,20 +231,22 @@ if __name__ == "__main__":
         ### GET THE QUERIES DATASET ###
         df_query = to_dataframe(query_spectrograms, query_labels)
         queryLoader = AudioDatasetDCASE(df_query, label_dict={'NEG': 0, 'POS': 1})
-        queryLoader = DataLoader(queryLoader, batch_size=4)
+        queryLoader = DataLoader(queryLoader, batch_size=1) # KEEP BATCH SIZE OF 1 TO GET BEGIN AND END OF SEGMENT
 
         # Get the results
         print("===DOING THE PREDICTION FOR {}===".format(filename))
         predicted_labels, labels, begins, ends = predict_labels_query(model, queryLoader, prototypes, l_segments=cfg["l_segments"], offset=0)
-        print(predicted_labels)
-        print(labels)
-        
+
+        # Compute the scores for the analysed file -- just as information    
         compute_scores(predicted_labels=predicted_labels.to('cpu').numpy(), gt_labels=labels.to('cpu').numpy())
 
-        # Just for the evaluation dataset
-        #result_POS = result[result["PredLabels"] == "POS"].drop(["PredLabels"], axis=1)
-        #results = results.append(result_POS)
+        # Get the results in a dataframe
+        df_result = write_results(filename, predicted_labels, begins, ends)
+
+        # Filter only the POS results
+        result_POS = df_result[df_result["PredLabels"] == "POS"].drop(["PredLabels"], axis=1)
+        results = results.append(result_POS)
 
     # Return the final product
-    #csv_path = os.path.join(cfg["save_dir"],'eval_out.csv')
-    #results.to_csv(csv_path,index=False)
+    csv_path = os.path.join(cfg["save_dir"],'eval_out.csv')
+    results.to_csv(csv_path,index=False)
