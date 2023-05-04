@@ -24,6 +24,16 @@ import pytorch_lightning as pl
 
 from callbacks.callbacks import MilestonesFinetuning
 
+def to_dataframe(features, labels):
+
+    # Load the saved array and map the features and labels into a single dataframe
+    input_features = np.load(features)
+    labels = np.load(labels)
+    list_input_features = [input_features[key] for key in input_features.files]
+    df = pd.DataFrame({"feature": list_input_features, "category": labels})
+
+    return df
+
 def train_model(model_class=ProtoBEATsModel, datamodule_class=DCASEDataModule, milestones=[10,20,30], max_epochs=15, enable_model_summary=False, num_sanity_val_steps=0, seed=42, pretrained_model=None):
     # create the lightning trainer object
     trainer = pl.Trainer(
@@ -50,7 +60,7 @@ def train_model(model_class=ProtoBEATsModel, datamodule_class=DCASEDataModule, m
 
     return model
 
-def training_main(pretrained_model, custom_datamodule, max_epoch, milestones=[10,20,30]):
+def training(pretrained_model, custom_datamodule, max_epoch, milestones=[10,20,30]):
 
     model = train_model(
         ProtoBEATsModel,
@@ -65,16 +75,6 @@ def training_main(pretrained_model, custom_datamodule, max_epoch, milestones=[10
 
     return model
 
-def to_dataframe(features, labels):
-
-    # Load the saved array and map the features and labels into a single dataframe
-    input_features = np.load(features)
-    labels = np.load(labels)
-    list_input_features = [input_features[key] for key in input_features.files]
-    df = pd.DataFrame({"feature": list_input_features, "category": labels})
-
-    return df
-
 def get_proto_coordinates(model, support_data, support_labels, n_way):
 
     z_supports, _ = model.get_embeddings(support_data, padding_mask=None)
@@ -85,7 +85,7 @@ def get_proto_coordinates(model, support_data, support_labels, n_way):
     # Return the coordinates of the prototypes
     return prototypes
 
-def predict_labels_query(model, queryloader, prototypes, l_segments, offset):
+def predict_labels_query(model, queryloader, prototypes, l_segments, frame_shift, overlap):
     """ 
     - l_segment to know the length of the segment
     - offset is the position of the end of the last support sample
@@ -105,12 +105,16 @@ def predict_labels_query(model, queryloader, prototypes, l_segments, offset):
         # Get the embeddings for the query
         feature, label = data
         feature = feature.to("cuda")
-        print(feature.shape)
         q_embedding, _ = model.get_embeddings(feature, padding_mask=None)
 
         # Calculate beginTime and endTime for each segment
-        begin = i * l_segments + offset
-        end = begin + l_segments + offset
+        # We multiply by 100 to get the time in seconds
+        if i == 0:
+            begin = i / 1000
+            end = l_segments * frame_shift / 1000
+        else:
+            begin = i * l_segments * frame_shift * overlap / 1000
+            end = begin + l_segments * frame_shift / 1000
 
         # Get the scores:
         classification_scores = calculate_distance(q_embedding, prototypes)
@@ -159,14 +163,8 @@ def compute_scores(predicted_labels, gt_labels):
     print(f"F1 score: {f1score}")
 
 def write_results(filename, predicted_labels, begins, ends):
-    # Write the result as a dataframe and filter out the "NEG" samples
-    name = np.repeat(filename,len(begins))
-    #name_arr = np.append(name_arr,name)
 
-    print(len(name))
-    print(len(predicted_labels))
-    print(len(begins))
-    print(len(ends))
+    name = np.repeat(filename,len(begins))
 
     df_out = pd.DataFrame({'Audiofilename':name,
                            'Starttime':begins, 
@@ -174,6 +172,59 @@ def write_results(filename, predicted_labels, begins, ends):
                            'PredLabels':predicted_labels})
     
     return df_out
+
+def main(cfg, meta_df, support_spectrograms, support_labels, query_spectrograms, query_labels):
+
+    # Get the filename and the frame_shift for the particular file
+    filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
+    frame_shift = meta_df.loc[filename, "frame_shift"]
+
+    print("[INFO] PROCESSING {}".format(filename))
+
+    df_support = to_dataframe(support_spectrograms, support_labels)
+    custom_dcasedatamodule = DCASEDataModule(data_frame=df_support)
+    label_dic = custom_dcasedatamodule.get_label_dic()
+
+    # Train the model with the support data
+    print ("[INFO] TRAINING THE MODEL FOR {}".format(filename))
+
+    model = training(cfg["model_path"], custom_dcasedatamodule, max_epoch=1)
+
+    # Get the prototypes coordinates
+    a = custom_dcasedatamodule.test_dataloader()
+    s, sl, _, _, ways = a
+    prototypes = get_proto_coordinates(model, s, sl, n_way=len(ways))
+
+    ### Get the query dataset ###
+    df_query = to_dataframe(query_spectrograms, query_labels)
+    queryLoader = AudioDatasetDCASE(df_query, label_dict=label_dic)
+    queryLoader = DataLoader(queryLoader, batch_size=1) # KEEP BATCH SIZE OF 1 TO GET BEGIN AND END OF SEGMENT
+
+    # Get the results
+    print("[INFO] DOING THE PREDICTION FOR {}".format(filename))
+
+    predicted_labels, labels, begins, ends = predict_labels_query(model, queryLoader, prototypes, l_segments=cfg["l_segments"], frame_shift=frame_shift, overlap=cfg["overlap"])
+
+    # Compute the scores for the analysed file -- just as information    
+    compute_scores(predicted_labels=predicted_labels.to('cpu').numpy(), gt_labels=labels.to('cpu').numpy())
+
+    # Get the results in a dataframe
+    df_result = write_results(filename, predicted_labels, begins, ends)
+
+    # Convert the binary PredLabels (0,1) into POS or NEG string --> WE DO THAT BECAUSE LABEL ENCODER FOR EACH FILE CAN DIFFER
+    # invert the key-value pairs of the dictionary using a dictionary comprehension
+    label_dict_inv = {v: k for k, v in label_dic.items()}
+
+    # use the map method to replace the values in the "PredLabels" column
+    df_result["PredLabels"] = df_result["PredLabels"].map(label_dict_inv)
+
+    # Filter only the POS results
+    result_POS = df_result[df_result["PredLabels"] == "POS"].drop(["PredLabels"], axis=1)
+
+    # Return the dataset
+    print("[INFO] {} PROCESSED".format(filename))
+    return result_POS
+
 
 if __name__ == "__main__":
 
@@ -199,54 +250,25 @@ if __name__ == "__main__":
     query_all_spectrograms = glob.glob(cfg["query_data_path"], recursive=True)
     query_all_labels = glob.glob(cfg["query_labels_path"], recursive=True)
 
-    # Empty dataframe that will store all the results
+    # Open the meta.csv containing the frame_shift for each file
+    meta_df = pd.read_csv(cfg["meta_df_path"], names = ["frame_shift", "filename"]).set_index('filename')
+
+    # Dataset to store all the results
     results = pd.DataFrame()
 
+    # Run the main script
     for support_spectrograms, support_labels, query_spectrograms, query_labels in zip(support_all_spectrograms, support_all_labels, query_all_spectrograms, query_all_labels):
-        print(support_spectrograms)
-        print(support_labels)
-        print(query_spectrograms)
-        print(query_labels)
 
-        ### GET THE SUPPORT DATAFRAME ###
-        filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
-
-        print("===PROCESSING {}===".format(filename))
-
-        df_support = to_dataframe(support_spectrograms, support_labels)
-        custom_dcasedatamodule = DCASEDataModule(data_frame=df_support)
-        label_dic = custom_dcasedatamodule.get_label_dic()
-        print(label_dic)
-
-        # Train the model with the support data
-        print ("===TRAINING THE MODEL FOR {}===".format(filename))
-
-        model = training_main(cfg["model_path"], custom_dcasedatamodule, max_epoch=1)
-
-        # Get the prototypes coordinates
-        a = custom_dcasedatamodule.test_dataloader()
-        s, sl, q, ql, ways = a
-        prototypes = get_proto_coordinates(model, s, sl, n_way=len(ways))
-
-        ### GET THE QUERIES DATASET ###
-        df_query = to_dataframe(query_spectrograms, query_labels)
-        queryLoader = AudioDatasetDCASE(df_query, label_dict={'NEG': 0, 'POS': 1})
-        queryLoader = DataLoader(queryLoader, batch_size=1) # KEEP BATCH SIZE OF 1 TO GET BEGIN AND END OF SEGMENT
-
-        # Get the results
-        print("===DOING THE PREDICTION FOR {}===".format(filename))
-        predicted_labels, labels, begins, ends = predict_labels_query(model, queryLoader, prototypes, l_segments=cfg["l_segments"], offset=0)
-
-        # Compute the scores for the analysed file -- just as information    
-        compute_scores(predicted_labels=predicted_labels.to('cpu').numpy(), gt_labels=labels.to('cpu').numpy())
-
-        # Get the results in a dataframe
-        df_result = write_results(filename, predicted_labels, begins, ends)
-
-        # Filter only the POS results
-        result_POS = df_result[df_result["PredLabels"] == "POS"].drop(["PredLabels"], axis=1)
-        results = results.append(result_POS)
+        result = main(cfg, 
+            meta_df, 
+            support_spectrograms, 
+            support_labels, 
+            query_spectrograms, 
+            query_labels)
+        
+        results = results.append(result)
 
     # Return the final product
     csv_path = os.path.join(cfg["save_dir"],'eval_out.csv')
     results.to_csv(csv_path,index=False)
+
