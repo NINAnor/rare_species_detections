@@ -32,6 +32,8 @@ import json
 import csv
 import matplotlib.pyplot as plt
 from copy import copy
+from .dataset import TaskSampler
+from torch.utils.data import Dataset, DataLoader
 
 PLOT = False
 PLOT_TOO_SHORT_SAMPLES = False
@@ -41,6 +43,32 @@ def normalize_mono(samples):
     current_max = max(np.amax(samples), -np.amin(samples))
     scale = 0.99 / current_max
     return np.multiply(samples, scale)
+
+
+def few_shot_dataloader(
+    df: Dataset,
+    n_way: int,
+    n_shot: int,
+    n_query: int,
+    n_tasks: int,
+    tensor_length: int = 0
+) -> DataLoader:
+
+    sampler = TaskSampler(
+        df,
+        n_way=n_way,  # number of classes
+        n_shot=n_shot,  # Number of images PER CLASS in the support set
+        n_query=n_query,  # Number of images PER CLASSS in the query set
+        n_tasks=n_tasks,  # Not sure
+        tensor_length=tensor_length,
+    )
+
+    return DataLoader(
+        df,
+        batch_sampler=sampler,
+        pin_memory=False,
+        collate_fn=sampler.episodic_collate_fn,
+    )
 
 
 def preprocess(

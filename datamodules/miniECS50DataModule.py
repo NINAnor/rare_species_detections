@@ -7,38 +7,8 @@ import os
 from torch.utils.data import DataLoader
 
 from pytorch_lightning import LightningDataModule
-from data_utils.dataset import TaskSampler, AudioDataset
-
-def few_shot_dataloader(root_dir, data_frame, n_way, n_shot, n_query, n_tasks, transform = None): 
-    """
-    root_dir: directory where the audio data is stored
-    data_frame: path to the label file
-    n_way: number of classes
-    n_shot: number of images PER CLASS in the support set
-    n_query: number of images PER CLASSS in the query set
-    n_tasks: number of episodes (number of times the loader gives the data during a training step)
-    """       
-    
-    df = AudioDataset(
-        root_dir=root_dir, data_frame=data_frame, transform=transform
-    )
-
-    sampler = TaskSampler(
-        df, 
-        n_way=n_way, # number of classes
-        n_shot=n_shot, # Number of images PER CLASS in the support set
-        n_query=n_query, # Number of images PER CLASSS in the query set
-        n_tasks=n_tasks # Not sure
-    )
-
-    loader = DataLoader(
-        df,
-        batch_sampler=sampler,
-        pin_memory=False,
-        collate_fn=sampler.episodic_collate_fn
-    )
-
-    return loader
+from data_utils.dataset import AudioDataset
+from data_utils.DCASEfewshot import few_shot_dataloader
 
 
 class miniECS50DataModule(LightningDataModule):
@@ -70,45 +40,73 @@ class miniECS50DataModule(LightningDataModule):
 
         self.setup()
 
+
+    def dataloader(
+        self,
+        root_dir,
+        data_frame,
+        n_way,
+        n_shot,
+        n_query,
+        n_tasks,
+        transform = None
+    ) -> DataLoader:
+
+        df = AudioDataset(
+            root_dir=root_dir, data_frame=data_frame, transform=transform
+        )
+
+        return few_shot_dataloader(df, n_way, n_shot, n_query, n_tasks)
+
+
     def prepare_data(self):
+
         pass
 
+    
     def setup(self, stage=None):
-        self.train_set= pd.read_csv(self.csv_file_train)
+        self.train_set = pd.read_csv(self.csv_file_train)
         self.val_set = pd.read_csv(self.csv_file_val)
         self.test_set = pd.read_csv(self.csv_file_test)
 
+        
     def train_dataloader(self):
 
-        train_loader = few_shot_dataloader(self.root_dir_train, 
-                                           self.train_set, 
-                                           n_way=5, 
-                                           n_shot=5, 
-                                           n_query=5, 
-                                           n_tasks=self.n_task_train, 
-                                           transform=self.transform)
-        return train_loader
+        return self.dataloader(
+            self.root_dir_train, 
+            self.train_set, 
+            n_way=5, 
+            n_shot=5, 
+            n_query=5, 
+            n_tasks=self.n_task_train, 
+            transform=self.transform
+        )
 
+    
     def val_dataloader(self):
 
-        val_loader = few_shot_dataloader(self.root_dir_val, 
-                                           self.val_set, 
-                                           n_way=5, 
-                                           n_shot=3, 
-                                           n_query=2, 
-                                           n_tasks=self.n_task_val, 
-                                           transform=self.transform)
-        return val_loader
+        return self.dataloader(
+            self.root_dir_val, 
+            self.val_set, 
+            n_way=5, 
+            n_shot=3, 
+            n_query=2, 
+            n_tasks=self.n_task_val, 
+            transform=self.transform
+        )
+
     
     def test_dataloader(self):
 
-        test_loader = few_shot_dataloader(self.root_dir_test, 
-                                           self.test_set, 
-                                           n_way=5, 
-                                           n_shot=5, 
-                                           n_query=20, 
-                                           n_tasks=self.n_task_test, 
-                                           transform=self.transform)
-        return test_loader
+        return self.dataloader(
+            self.root_dir_test, 
+            self.test_set, 
+            n_way=5, 
+            n_shot=5, 
+            n_query=20, 
+            n_tasks=self.n_task_test, 
+            transform=self.transform
+        )
+
     
 
