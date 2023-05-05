@@ -136,12 +136,14 @@ def predict_labels_query(
         classification_scores = calculate_distance(q_embedding, prototypes)
 
         # Get the labels (either POS or NEG):
-        predicted_labels = torch.max(classification_scores, 0)[1]  # The dim where the distance to prototype is stored is 1
+        predicted_labels = torch.max(classification_scores, 0)[
+            1
+        ]  # The dim where the distance to prototype is stored is 1
 
         # To numpy array
-        distance_to_pos = classification_scores[pos_index].detach().to('cpu').numpy()
-        predicted_labels = predicted_labels.detach().to('cpu').numpy()
-        label = label.detach().to('cpu').numpy()
+        distance_to_pos = classification_scores[pos_index].detach().to("cpu").numpy()
+        predicted_labels = predicted_labels.detach().to("cpu").numpy()
+        label = label.detach().to("cpu").numpy()
 
         # Return the labels, begin and end of the detection
         pred_labels.append(predicted_labels)
@@ -202,10 +204,14 @@ def write_results(predicted_labels, begins, ends):
 
     return df_out
 
+
 def merge_preds(df, tolerence, tensor_length):
-    df["group"]=(df["Starttime"]>(df["Endtime"]+tolerence*tensor_length).shift().cummax()).cumsum()
-    result=df.groupby("group").agg({"Starttime":"min", "Endtime": "max"})
+    df["group"] = (
+        df["Starttime"] > (df["Endtime"] + tolerence * tensor_length).shift().cummax()
+    ).cumsum()
+    result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
+
 
 def main(
     cfg, meta_df, support_spectrograms, support_labels, query_spectrograms, query_labels
@@ -252,7 +258,7 @@ def main(
         tensor_length=cfg["tensor_length"],
         frame_shift=frame_shift,
         overlap=cfg["overlap"],
-        pos_index=pos_index
+        pos_index=pos_index,
     )
 
     # Compute the scores for the analysed file -- just as information
@@ -276,7 +282,9 @@ def main(
         ["PredLabels"], axis=1
     )
 
-    result_POS_merged = merge_preds(df = result_POS, tolerence = cfg["tolerance"], tensor_length = cfg["tensor_length"])
+    result_POS_merged = merge_preds(
+        df=result_POS, tolerence=cfg["tolerance"], tensor_length=cfg["tensor_length"]
+    )
 
     # Add the filename
     result_POS_merged["filename"] = filename
@@ -289,7 +297,16 @@ def main(
     print("[INFO] {} PROCESSED".format(filename))
     return result_POS_merged, predicted_labels, labels, distances_to_pos
 
-def write_wav(cfg, query_spectrograms, query_labels, gt_labels, pred_labels, distances_to_pos, target_fs=16000):
+
+def write_wav(
+    cfg,
+    query_spectrograms,
+    query_labels,
+    gt_labels,
+    pred_labels,
+    distances_to_pos,
+    target_fs=16000,
+):
     from scipy.io import wavfile
     import shutil
 
@@ -302,12 +319,14 @@ def write_wav(cfg, query_spectrograms, query_labels, gt_labels, pred_labels, dis
     if not os.path.exists(os.path.join(target_path, "audio")):
         os.makedirs(os.path.join(target_path, "audio"))
 
-    filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
-    output= os.path.join(target_path, filename)
+    filename = (
+        os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
+    )
+    output = os.path.join(target_path, filename)
 
     # Read the files
     df = to_dataframe(query_spectrograms, query_labels)
-    concatenated_array = np.concatenate(df['feature'].values, axis=1)
+    concatenated_array = np.concatenate(df["feature"].values, axis=1)
 
     # Expand the dimensions
     gt_labels = np.expand_dims(np.squeeze(gt_labels, axis=1), axis=0)
@@ -326,8 +345,11 @@ def write_wav(cfg, query_spectrograms, query_labels, gt_labels, pred_labels, dis
     print(type(distances_to_pos))
     print(distances_to_pos.shape)
 
-    result_wav = np.array([concatenated_array, gt_labels, pred_labels, distances_to_pos])
+    result_wav = np.array(
+        [concatenated_array, gt_labels, pred_labels, distances_to_pos]
+    )
     wavfile.write(output, target_fs, result_wav)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -356,12 +378,13 @@ if __name__ == "__main__":
 
     # Get training config
     training_config_path = os.path.join(
-        os.path.dirname(os.path.dirname(cfg["model_path"])), "config.yaml")
+        os.path.dirname(os.path.dirname(cfg["model_path"])), "config.yaml"
+    )
     with open(training_config_path) as f:
         cfg_trainer = yaml.load(f, Loader=FullLoader)
 
     # Get correct paths to dataset
-    data_hp = cfg_trainer["data"]#["init_args"]
+    data_hp = cfg_trainer["data"]  # ["init_args"]
     my_hash_dict = {
         "resample": data_hp["resample"],
         "denoise": data_hp["denoise"],
@@ -447,21 +470,21 @@ if __name__ == "__main__":
             support_spectrograms,
             support_labels,
             query_spectrograms,
-            query_labels
+            query_labels,
         )
 
         results = results.append(result)
 
         if cli_args.wav_save:
             write_wav(
-                cfg, 
-                query_spectrograms, 
+                cfg,
+                query_spectrograms,
                 query_labels,
-                gt_labels, 
-                pred_labels, 
+                gt_labels,
+                pred_labels,
                 distances_to_pos,
-                target_fs=data_hp["target_fs"]
-        )
+                target_fs=data_hp["target_fs"],
+            )
 
     # Return the final product
     csv_path = os.path.join(cfg["save_dir"], "eval_out.csv")
