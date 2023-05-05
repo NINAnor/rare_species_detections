@@ -100,7 +100,7 @@ def get_proto_coordinates(model, support_data, support_labels, n_way):
 
 
 def predict_labels_query(
-    model, queryloader, prototypes, tensor_length, frame_shift, overlap
+    model, queryloader, prototypes, tensor_length, frame_shift, overlap, pos_index
 ):
     """
     - l_segment to know the length of the segment
@@ -115,6 +115,7 @@ def predict_labels_query(
     labels = []
     begins = []
     ends = []
+    d_to_pos = []
 
     for i, data in enumerate(tqdm(queryloader)):
         # Get the embeddings for the query
@@ -135,20 +136,26 @@ def predict_labels_query(
         classification_scores = calculate_distance(q_embedding, prototypes)
 
         # Get the labels (either POS or NEG):
-        predicted_labels = torch.max(classification_scores, 0)[
-            1
-        ]  # The dim where the distance to prototype is stored is 1
+        predicted_labels = torch.max(classification_scores, 0)[1]  # The dim where the distance to prototype is stored is 1
+
+        # To numpy array
+        distance_to_pos = classification_scores[pos_index].detach().to('cpu').numpy()
+        predicted_labels = predicted_labels.detach().to('cpu').numpy()
+        print(label)
+        label = label.detach().to('cpu').numpy()
 
         # Return the labels, begin and end of the detection
         pred_labels.append(predicted_labels)
         labels.append(label)
         begins.append(begin)
         ends.append(end)
+        d_to_pos.append(distance_to_pos)
 
-    pred_labels = torch.tensor(pred_labels)
-    labels = torch.tensor(labels)
+    pred_labels = np.array(pred_labels)
+    labels = np.array(labels)
+    d_to_pos = np.array(d_to_pos)
 
-    return pred_labels, labels, begins, ends
+    return pred_labels, labels, begins, ends, d_to_pos
 
 
 def euclidean_distance(x1, x2):
@@ -217,6 +224,7 @@ def main(
     df_support = to_dataframe(support_spectrograms, support_labels)
     custom_dcasedatamodule = DCASEDataModule(data_frame=df_support)
     label_dic = custom_dcasedatamodule.get_label_dic()
+    pos_index = label_dic["POS"]
 
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
@@ -238,19 +246,20 @@ def main(
     # Get the results
     print("[INFO] DOING THE PREDICTION FOR {}".format(filename))
 
-    predicted_labels, labels, begins, ends = predict_labels_query(
+    predicted_labels, labels, begins, ends, distances_to_pos = predict_labels_query(
         model,
         queryLoader,
         prototypes,
         tensor_length=cfg["tensor_length"],
         frame_shift=frame_shift,
         overlap=cfg["overlap"],
+        pos_index=pos_index
     )
 
     # Compute the scores for the analysed file -- just as information
     compute_scores(
-        predicted_labels=predicted_labels.to("cpu").numpy(),
-        gt_labels=labels.to("cpu").numpy(),
+        predicted_labels=predicted_labels,
+        gt_labels=labels,
     )
 
     # Get the results in a dataframe
@@ -279,8 +288,37 @@ def main(
 
     # Return the dataset
     print("[INFO] {} PROCESSED".format(filename))
-    return result_POS_merged
+    return result_POS_merged, predicted_labels, distances_to_pos
 
+def write_wav(cfg, query_spectrograms, query_labels, pred_labels, distances_to_pos, target_fs=16000):
+    from scipy.io import wavfile
+    import shutil
+
+    # Some path management
+    target_path = os.path.join(cfg["save_dir"], cfg["status"], "saved_results")
+
+    if os.path.exists(target_path):
+        shutil.rmtree(target_path)
+
+    if not os.path.exists(os.path.join(target_path, "audio")):
+        os.makedirs(os.path.join(target_path, "audio"))
+
+    filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
+    output= os.path.join(target_path, filename)
+
+    # Read the files
+    query_spectrograms = np.load(query_spectrograms)
+    query_labels = np.load(query_labels)
+
+    # Get the spectrograms into a single array
+    df = to_dataframe(query_spectrograms, query_labels)
+    concatenated_array = np.concatenate(df['feature'].values)
+
+    # Make sure everything is a numpy array
+
+    # Write the results
+    result_wav = np.array([concatenated_array, query_labels, pred_labels, distances_to_pos])
+    wavfile.write(output, target_fs, result_wav)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -291,6 +329,14 @@ if __name__ == "__main__":
         required=False,
         default="./evaluate/config_evaluation.yaml",
         type=str,
+    )
+
+    parser.add_argument(
+        "--wav_save",
+        help="Should the results be also saved as a .wav file?",
+        default=False,
+        required=False,
+        action="store_true",
     )
 
     cli_args = parser.parse_args()
@@ -385,16 +431,27 @@ if __name__ == "__main__":
         query_all_spectrograms,
         query_all_labels,
     ):
-        result = main(
+        print(support_all_spectrograms)
+        result, pred_labels, distances_to_pos = main(
             cfg,
             meta_df,
             support_spectrograms,
             support_labels,
             query_spectrograms,
-            query_labels,
+            query_labels
         )
 
         results = results.append(result)
+
+        if cli_args.wav_save:
+            write_wav(
+                cfg, 
+                query_spectrograms, 
+                query_labels, 
+                pred_labels, 
+                distances_to_pos,
+                target_fs=data_hp["target_fs"]
+        )
 
     # Return the final product
     csv_path = os.path.join(cfg["save_dir"], "eval_out.csv")
