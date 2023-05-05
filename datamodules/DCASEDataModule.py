@@ -67,7 +67,7 @@ def few_shot_dataloader(df, n_way, n_shot, n_query, n_tasks, tensor_length):
         n_shot=n_shot,  # Number of images PER CLASS in the support set
         n_query=n_query,  # Number of images PER CLASSS in the query set
         n_tasks=n_tasks,  # Not sure
-        tensor_length=128,
+        tensor_length=tensor_length,  # length of model input tensor
     )
 
     loader = DataLoader(
