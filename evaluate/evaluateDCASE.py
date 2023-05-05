@@ -141,7 +141,6 @@ def predict_labels_query(
         # To numpy array
         distance_to_pos = classification_scores[pos_index].detach().to('cpu').numpy()
         predicted_labels = predicted_labels.detach().to('cpu').numpy()
-        print(label)
         label = label.detach().to('cpu').numpy()
 
         # Return the labels, begin and end of the detection
@@ -288,9 +287,9 @@ def main(
 
     # Return the dataset
     print("[INFO] {} PROCESSED".format(filename))
-    return result_POS_merged, predicted_labels, distances_to_pos
+    return result_POS_merged, predicted_labels, labels, distances_to_pos
 
-def write_wav(cfg, query_spectrograms, query_labels, pred_labels, distances_to_pos, target_fs=16000):
+def write_wav(cfg, query_spectrograms, query_labels, gt_labels, pred_labels, distances_to_pos, target_fs=16000):
     from scipy.io import wavfile
     import shutil
 
@@ -307,17 +306,18 @@ def write_wav(cfg, query_spectrograms, query_labels, pred_labels, distances_to_p
     output= os.path.join(target_path, filename)
 
     # Read the files
-    query_spectrograms = np.load(query_spectrograms)
-    query_labels = np.load(query_labels)
-
-    # Get the spectrograms into a single array
     df = to_dataframe(query_spectrograms, query_labels)
     concatenated_array = np.concatenate(df['feature'].values)
 
-    # Make sure everything is a numpy array
-
     # Write the results
-    result_wav = np.array([concatenated_array, query_labels, pred_labels, distances_to_pos])
+    print(output)
+    print(type(concatenated_array))
+    print(concatenated_array.shape)
+    print(type(gt_labels))
+    print(type(pred_labels))
+    print(type(distances_to_pos))
+
+    result_wav = np.array([concatenated_array, gt_labels, pred_labels, distances_to_pos])
     wavfile.write(output, target_fs, result_wav)
 
 if __name__ == "__main__":
@@ -432,7 +432,7 @@ if __name__ == "__main__":
         query_all_labels,
     ):
         print(support_all_spectrograms)
-        result, pred_labels, distances_to_pos = main(
+        result, pred_labels, gt_labels, distances_to_pos = main(
             cfg,
             meta_df,
             support_spectrograms,
@@ -447,7 +447,8 @@ if __name__ == "__main__":
             write_wav(
                 cfg, 
                 query_spectrograms, 
-                query_labels, 
+                query_labels,
+                gt_labels, 
                 pred_labels, 
                 distances_to_pos,
                 target_fs=data_hp["target_fs"]
