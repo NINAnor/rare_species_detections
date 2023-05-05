@@ -10,7 +10,7 @@ import yaml
 import json
 from yaml import FullLoader
 
-from sklearn.metrics import accuracy_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 
 import torch
 from torch.utils.data import DataLoader
@@ -177,10 +177,11 @@ def compute_scores(predicted_labels, gt_labels):
     acc = accuracy_score(gt_labels, predicted_labels)
     recall = recall_score(gt_labels, predicted_labels)
     f1score = f1_score(gt_labels, predicted_labels)
-
+    precision = precision_score(gt_labels, predicted_labels)
     print(f"Accurracy: {acc}")
     print(f"Recall: {recall}")
     print(f"F1 score: {f1score}")
+    print(f"F1 precision: {precision}")
 
 
 def write_results(predicted_labels, begins, ends):
