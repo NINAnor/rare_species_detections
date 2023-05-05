@@ -183,12 +183,10 @@ def compute_scores(predicted_labels, gt_labels):
     print(f"F1 score: {f1score}")
 
 
-def write_results(filename, predicted_labels, begins, ends):
-    name = np.repeat(filename, len(begins))
+def write_results(predicted_labels, begins, ends):
 
     df_out = pd.DataFrame(
         {
-            "Audiofilename": name,
             "Starttime": begins,
             "Endtime": ends,
             "PredLabels": predicted_labels,
@@ -197,6 +195,10 @@ def write_results(filename, predicted_labels, begins, ends):
 
     return df_out
 
+def merge_preds(df, tolerence, tensor_length):
+    df["group"]=(df["Starttime"]>(df["Endtime"]+tolerence*tensor_length).shift().cummax()).cumsum()
+    result=df.groupby("group").agg({"Starttime":"min", "Endtime": "max"})
+    return result
 
 def main(
     cfg, meta_df, support_spectrograms, support_labels, query_spectrograms, query_labels
@@ -251,7 +253,7 @@ def main(
     )
 
     # Get the results in a dataframe
-    df_result = write_results(filename, predicted_labels, begins, ends)
+    df_result = write_results(predicted_labels, begins, ends)
 
     # Convert the binary PredLabels (0,1) into POS or NEG string --> WE DO THAT BECAUSE LABEL ENCODER FOR EACH FILE CAN DIFFER
     # invert the key-value pairs of the dictionary using a dictionary comprehension
@@ -265,9 +267,18 @@ def main(
         ["PredLabels"], axis=1
     )
 
+    result_POS_merged = merge_preds(df = result_POS, tolerence = cfg["tolerance"], tensor_length = cfg["tensor_length"])
+
+    # Add the filename
+    result_POS_merged["filename"] = filename
+
+    # Place filename as first column
+    f = result_POS_merged.pop("filename")
+    result_POS_merged.insert(0, "filename", f)
+
     # Return the dataset
     print("[INFO] {} PROCESSED".format(filename))
-    return result_POS
+    return result_POS_merged
 
 
 if __name__ == "__main__":
@@ -289,13 +300,12 @@ if __name__ == "__main__":
 
     # Get training config
     training_config_path = os.path.join(
-        os.path.dirname(os.path.dirname(cfg["model_path"])), "config.yaml"
-    )
+        os.path.dirname(os.path.dirname(cfg["model_path"])), "config.yaml")
     with open(training_config_path) as f:
         cfg_trainer = yaml.load(f, Loader=FullLoader)
 
     # Get correct paths to dataset
-    data_hp = cfg_trainer["data"]["init_args"]
+    data_hp = cfg_trainer["data"]#["init_args"]
     my_hash_dict = {
         "resample": data_hp["resample"],
         "denoise": data_hp["denoise"],

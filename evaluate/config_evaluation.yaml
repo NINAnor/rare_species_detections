@@ -7,12 +7,13 @@ status: "validate"
 ####################
 # Model parameters #
 ####################
-model_path: "/app/lightning_logs/version_88/checkpoints/epoch=19-step=2000.ckpt"
+model_path: "/app/lightning_logs/version_19/checkpoints/epoch=14-step=1500.ckpt"
 
 ##################################
 # Prediction segments parameters #
 ##################################
 overlap: 0.5
+tolerance: 0 # How many "gaps" should we allow to merge predictions into a single one
 
 #########################
 # DataLoader parameters #
