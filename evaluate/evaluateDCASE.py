@@ -307,15 +307,24 @@ def write_wav(cfg, query_spectrograms, query_labels, gt_labels, pred_labels, dis
 
     # Read the files
     df = to_dataframe(query_spectrograms, query_labels)
-    concatenated_array = np.concatenate(df['feature'].values)
+    concatenated_array = np.concatenate(df['feature'].values, axis=1)
+
+    # Expand the dimensions
+    gt_labels = np.expand_dims(np.squeeze(gt_labels, axis=1), axis=0)
+    pred_labels = np.expand_dims(pred_labels, axis=0)
+    distances_to_pos = np.expand_dims(distances_to_pos, axis=0)
 
     # Write the results
     print(output)
+    print(target_fs)
     print(type(concatenated_array))
     print(concatenated_array.shape)
     print(type(gt_labels))
+    print(gt_labels.shape)
     print(type(pred_labels))
+    print(pred_labels.shape)
     print(type(distances_to_pos))
+    print(distances_to_pos.shape)
 
     result_wav = np.array([concatenated_array, gt_labels, pred_labels, distances_to_pos])
     wavfile.write(output, target_fs, result_wav)
