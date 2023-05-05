@@ -28,15 +28,29 @@ import json
 import csv
 import matplotlib.pyplot as plt
 from copy import copy
+import noisereduce as nr
 
 PLOT = False
 PLOT_TOO_SHORT_SAMPLES = False
+PLOT_SUPPORT = False
 
 
 def normalize_mono(samples):
     current_max = max(np.amax(samples), -np.amin(samples))
     scale = 0.99 / current_max
     return np.multiply(samples, scale)
+
+
+def denoise_signal(samples, sr):
+    denoised_signal_samples = nr.reduce_noise(
+        y=np.squeeze(samples),
+        sr=sr,
+        prop_decrease=0.95,
+        stationary=True,
+        time_mask_smooth_ms=25,
+        freq_mask_smooth_hz=1000,
+    )
+    return denoised_signal_samples
 
 
 def preprocess(
@@ -111,7 +125,7 @@ def prepare_training_val_data(
             if start_waveform < 0:
                 extra_time = (extra_time * fs + start_waveform) / fs
                 start_waveform = 0
-            current_segment = y[None, start_waveform:end_waveform]
+            current_segment = y[start_waveform:end_waveform]
             if resample:
                 current_segment = librosa.resample(
                     current_segment, orig_sr=fs, target_sr=target_fs
@@ -122,13 +136,14 @@ def prepare_training_val_data(
             if normalize:
                 current_segment = normalize_mono(current_segment)
 
-            # TODO denoise
-            assert not denoise
+            # denoise
+            if denoise:
+                current_segment = denoise_signal(current_segment, target_fs)
 
             # obtain mel bins
             fbank = preprocess(
                 None,
-                torch.Tensor(current_segment),
+                torch.Tensor(current_segment[None, :]),
                 sample_frequency=target_fs,
                 frame_length=frame_length,
                 frame_shift=frame_shift,
@@ -192,7 +207,7 @@ def prepare_training_val_data(
             input_features.append(input_feature.numpy())
             labels.append(label)
             # plot feature
-            if PLOT or temp_plot:
+            if PLOT or temp_plot or (status != "train" and PLOT_SUPPORT):
                 plt.imshow(input_feature, cmap="hot", interpolation="nearest")
                 plt.title(label)
                 plt.savefig(
@@ -334,8 +349,8 @@ def prepare_training_val_data(
             if normalize:
                 y = normalize_mono(y)
 
-            # TODO denoise
-            assert not denoise
+            if denoise:
+                y = denoise_signal(y, target_fs)
 
             # CREATE QUERY SETS
             # obtain file specific frame_shift and save to meta.csv
