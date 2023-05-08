@@ -8,6 +8,7 @@ import os
 import hashlib
 import yaml
 import json
+import librosa
 from yaml import FullLoader
 
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
@@ -302,54 +303,47 @@ def main(
 
 
 def write_wav(
+    files,
     cfg,
-    query_spectrograms,
-    query_labels,
     gt_labels,
     pred_labels,
     distances_to_pos,
     target_fs=16000,
+    overwrite=False
 ):
     from scipy.io import wavfile
     import shutil
 
     # Some path management
-    target_path = os.path.join(cfg["save_dir"], cfg["status"], "saved_results")
+    target_path = os.path.join("RESULTS", cfg["save_dir"], cfg["status"], "saved_results", "audio")
 
-    if os.path.exists(target_path):
-        shutil.rmtree(target_path)
+    if overwrite:
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
 
-    if not os.path.exists(os.path.join(target_path, "audio")):
-        os.makedirs(os.path.join(target_path, "audio"))
+    if not os.path.exists(os.path.join(target_path)):
+        os.makedirs(os.path.join(target_path))
 
     filename = (
         os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
     )
     output = os.path.join(target_path, filename)
 
-    # Read the files
-    df = to_dataframe(query_spectrograms, query_labels)
-    concatenated_array = np.concatenate(df["feature"].values, axis=1)
+    # Find the filepath for the file being analysed
+    for f in files:
+        if os.path.basename(f) == filename:
+            print(os.path.basename(f))
+            print(filename)
+            arr, _ = librosa.load(f, sr=target_fs, mono=True)
 
     # Expand the dimensions
-    gt_labels = np.expand_dims(np.squeeze(gt_labels, axis=1), axis=0)
-    pred_labels = np.expand_dims(pred_labels, axis=0)
-    distances_to_pos = np.expand_dims(distances_to_pos, axis=0)
+    gt_labels = np.repeat(np.squeeze(gt_labels, axis=1).T, cfg["tensor_length"])
+    pred_labels = np.repeat(pred_labels.T, cfg["tensor_length"])
+    distances_to_pos = np.repeat(distances_to_pos.T, cfg["tensor_length"])
 
     # Write the results
-    print(output)
-    print(target_fs)
-    print(type(concatenated_array))
-    print(concatenated_array.shape)
-    print(type(gt_labels))
-    print(gt_labels.shape)
-    print(type(pred_labels))
-    print(pred_labels.shape)
-    print(type(distances_to_pos))
-    print(distances_to_pos.shape)
-
-    result_wav = np.array(
-        [concatenated_array, gt_labels, pred_labels, distances_to_pos]
+    result_wav = np.hstack(
+        (arr, gt_labels, pred_labels, distances_to_pos)
     )
     wavfile.write(output, target_fs, result_wav)
 
@@ -437,6 +431,11 @@ if __name__ == "__main__":
         "/data/DCASEfewshot", cfg["status"], hash_dir_name, "audio", "meta.csv"
     )
 
+    # Get all the files from the Validation / Evaluation set - when save wav option -
+    if cli_args.wav_save:
+        path = os.path.join("/data/DCASE/Development_Set", my_hash_dict["set_type"])
+        files = glob.glob(path + "/**/*.wav", recursive=True)
+
     # List all the SUPPORT files (both labels and spectrograms)
     support_all_spectrograms = glob.glob(support_data_path, recursive=True)
     support_all_labels = glob.glob(support_labels_path, recursive=True)
@@ -480,13 +479,13 @@ if __name__ == "__main__":
         results_raw = results_raw.append(result_raw)
         if cli_args.wav_save:
             write_wav(
+                files,
                 cfg,
-                query_spectrograms,
-                query_labels,
                 gt_labels,
                 pred_labels,
                 distances_to_pos,
                 target_fs=data_hp["target_fs"],
+                overwrite=False
             )
 
     # Return the final product
