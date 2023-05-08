@@ -10,7 +10,8 @@ import yaml
 import json
 import librosa
 from yaml import FullLoader
-
+import csv
+import shutil
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 
 import torch
@@ -189,8 +190,9 @@ def compute_scores(predicted_labels, gt_labels):
     precision = precision_score(gt_labels, predicted_labels)
     print(f"Accurracy: {acc}")
     print(f"Recall: {recall}")
+    print(f"precision: {precision}")
     print(f"F1 score: {f1score}")
-    print(f"F1 precision: {precision}")
+    return acc, recall, precision, f1score
 
 
 def write_results(predicted_labels, begins, ends):
@@ -219,9 +221,6 @@ def main(
     # Get the filename and the frame_shift for the particular file
     filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
     frame_shift = meta_df.loc[filename, "frame_shift"]
-    if len(frame_shift) > 1:
-        assert np.all(frame_shift.values == frame_shift.values[0])
-        frame_shift = frame_shift.values[0]
     print("[INFO] PROCESSING {}".format(filename))
     # check labels and spectograms all from same file
     assert filename in support_labels
@@ -264,10 +263,18 @@ def main(
     )
 
     # Compute the scores for the analysed file -- just as information
-    compute_scores(
+    acc, recall, precision, f1score = compute_scores(
         predicted_labels=predicted_labels,
         gt_labels=labels,
     )
+    with open(
+        os.path.join(target_path, "summary.csv"),
+        "a",
+        newline="",
+        encoding="utf-8",
+    ) as my_file:
+        wr = csv.writer(my_file, delimiter=",")
+        wr.writerow([filename, acc, recall, precision, f1score])
 
     # Get the results in a dataframe
     df_result = write_results(predicted_labels, begins, ends)
@@ -281,6 +288,7 @@ def main(
     df_result_raw = df_result.copy()
     df_result_raw["distance"] = distances_to_pos
     df_result_raw["gt_labels"] = labels
+    df_result_raw["filename"] = filename
     # Filter only the POS results
     result_POS = df_result[df_result["PredLabels"] == "POS"].drop(
         ["PredLabels"], axis=1
@@ -299,7 +307,13 @@ def main(
 
     # Return the dataset
     print("[INFO] {} PROCESSED".format(filename))
-    return result_POS_merged, predicted_labels, labels, distances_to_pos, df_result_raw
+    return (
+        result_POS_merged,
+        predicted_labels,
+        labels,
+        distances_to_pos,
+        df_result_raw,
+    )
 
 
 def write_wav(
@@ -309,32 +323,18 @@ def write_wav(
     pred_labels,
     distances_to_pos,
     target_fs=16000,
-    overwrite=False,
+    target_path=None,
+    frame_shift=1,
 ):
     from scipy.io import wavfile
     import shutil
 
     # Some path management
-    target_path = os.path.join(
-        "RESULTS", cfg["save_dir"], cfg["status"], "saved_results", "audio"
-    )
-
-    if overwrite:
-        if os.path.exists(target_path):
-            shutil.rmtree(target_path)
-
-    if not os.path.exists(os.path.join(target_path)):
-        os.makedirs(os.path.join(target_path))
 
     filename = (
         os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
     )
     # Return the final product
-    target_path = os.path.join(
-        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results"
-    )
-    if not os.path.exists(target_path):
-        os.makedirs(target_path)
     output = os.path.join(target_path, filename)
 
     # Find the filepath for the file being analysed
@@ -348,14 +348,15 @@ def write_wav(
     # Expand the dimensions
     gt_labels = np.repeat(
         np.squeeze(gt_labels, axis=1).T,
-        int(cfg["tensor_length"] * cfg["overlap"] * target_fs / 1000),
+        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
     )
     pred_labels = np.repeat(
-        pred_labels.T, int(cfg["tensor_length"] * cfg["overlap"] * target_fs / 1000)
+        pred_labels.T,
+        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
     )
     distances_to_pos = np.repeat(
         distances_to_pos.T,
-        int(cfg["tensor_length"] * cfg["overlap"] * target_fs / 1000),
+        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
     )
 
     # pad with zeros
@@ -396,6 +397,14 @@ if __name__ == "__main__":
         action="store_true",
     )
 
+    parser.add_argument(
+        "--overwrite",
+        help="Remove earlier obtained results at start",
+        default=False,
+        required=False,
+        action="store_true",
+    )
+
     cli_args = parser.parse_args()
 
     # Get evalution config
@@ -410,7 +419,7 @@ if __name__ == "__main__":
         cfg_trainer = yaml.load(f, Loader=FullLoader)
 
     # Get correct paths to dataset
-    data_hp = cfg_trainer["data"]  # ["init_args"]
+    data_hp = cfg_trainer["data"]["init_args"]
     my_hash_dict = {
         "resample": data_hp["resample"],
         "denoise": data_hp["denoise"],
@@ -460,6 +469,17 @@ if __name__ == "__main__":
         "/data/DCASEfewshot", cfg["status"], hash_dir_name, "audio", "meta.csv"
     )
 
+    # set target path
+    target_path = os.path.join(
+        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results"
+    )
+    if cli_args.overwrite:
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
+
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
+
     # Get all the files from the Validation / Evaluation set - when save wav option -
     if cli_args.wav_save:
         path = os.path.join("/data/DCASE/Development_Set", my_hash_dict["set_type"])
@@ -480,9 +500,9 @@ if __name__ == "__main__":
     query_all_labels.sort()
 
     # Open the meta.csv containing the frame_shift for each file
-    meta_df = pd.read_csv(meta_df_path, names=["frame_shift", "filename"]).set_index(
-        "filename"
-    )
+    meta_df = pd.read_csv(meta_df_path, names=["frame_shift", "filename"])
+    meta_df.drop_duplicates(inplace=True, keep="first")
+    meta_df.set_index("filename", inplace=True)
 
     # Dataset to store all the results
     results = pd.DataFrame()
@@ -495,6 +515,10 @@ if __name__ == "__main__":
         query_all_labels,
     ):
         print(support_all_spectrograms)
+        filename = (
+            os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
+        )
+        print(filename)
         result, pred_labels, gt_labels, distances_to_pos, result_raw = main(
             cfg,
             meta_df,
@@ -514,15 +538,12 @@ if __name__ == "__main__":
                 pred_labels,
                 distances_to_pos,
                 target_fs=data_hp["target_fs"],
-                overwrite=False,
+                target_path=target_path,
+                frame_shift=meta_df.loc[filename, "frame_shift"],
             )
 
     # Return the final product
-    target_path = os.path.join(
-        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results"
-    )
-    if not os.path.exists(target_path):
-        os.makedirs(target_path)
+
     results.to_csv(
         os.path.join(
             target_path,
