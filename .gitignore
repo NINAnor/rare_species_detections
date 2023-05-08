@@ -7,3 +7,4 @@ notebooks/*
 __pycache__/*
 save_exples/*
 *.ipynb
+logs/*

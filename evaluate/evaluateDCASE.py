@@ -193,7 +193,6 @@ def compute_scores(predicted_labels, gt_labels):
 
 
 def write_results(predicted_labels, begins, ends):
-
     df_out = pd.DataFrame(
         {
             "Starttime": begins,
@@ -219,7 +218,9 @@ def main(
     # Get the filename and the frame_shift for the particular file
     filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
     frame_shift = meta_df.loc[filename, "frame_shift"]
-
+    if len(frame_shift) > 1:
+        assert np.all(frame_shift.values == frame_shift.values[0])
+        frame_shift = frame_shift.values[0]
     print("[INFO] PROCESSING {}".format(filename))
     # check labels and spectograms all from same file
     assert filename in support_labels
@@ -276,7 +277,9 @@ def main(
 
     # use the map method to replace the values in the "PredLabels" column
     df_result["PredLabels"] = df_result["PredLabels"].map(label_dict_inv)
-
+    df_result_raw = df_result.copy()
+    df_result_raw["distance"] = distances_to_pos
+    df_result_raw["gt_labels"] = labels
     # Filter only the POS results
     result_POS = df_result[df_result["PredLabels"] == "POS"].drop(
         ["PredLabels"], axis=1
@@ -295,7 +298,7 @@ def main(
 
     # Return the dataset
     print("[INFO] {} PROCESSED".format(filename))
-    return result_POS_merged, predicted_labels, labels, distances_to_pos
+    return result_POS_merged, predicted_labels, labels, distances_to_pos, df_result_raw
 
 
 def write_wav(
@@ -455,7 +458,7 @@ if __name__ == "__main__":
 
     # Dataset to store all the results
     results = pd.DataFrame()
-
+    results_raw = pd.DataFrame()
     # Run the main script
     for support_spectrograms, support_labels, query_spectrograms, query_labels in zip(
         support_all_spectrograms,
@@ -464,7 +467,7 @@ if __name__ == "__main__":
         query_all_labels,
     ):
         print(support_all_spectrograms)
-        result, pred_labels, gt_labels, distances_to_pos = main(
+        result, pred_labels, gt_labels, distances_to_pos, result_raw = main(
             cfg,
             meta_df,
             support_spectrograms,
@@ -474,7 +477,7 @@ if __name__ == "__main__":
         )
 
         results = results.append(result)
-
+        results_raw = results_raw.append(result_raw)
         if cli_args.wav_save:
             write_wav(
                 cfg,
@@ -487,5 +490,23 @@ if __name__ == "__main__":
             )
 
     # Return the final product
-    csv_path = os.path.join(cfg["save_dir"], "eval_out.csv")
-    results.to_csv(csv_path, index=False)
+    target_path = os.path.join(
+        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results"
+    )
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
+    results.to_csv(
+        os.path.join(
+            target_path,
+            "eval_out.csv",
+        ),
+        index=False,
+    )
+    results_raw.to_csv(
+        os.path.join(
+            target_path,
+            "raw_eval_out.csv",
+        ),
+        index=False,
+    )
+    print("Evaluation Finished. Results saved to " + target_path)
