@@ -306,18 +306,20 @@ def write_wav(
     pred_labels,
     distances_to_pos,
     target_fs=16000,
+    overwrite=False
 ):
     from scipy.io import wavfile
     import shutil
 
     # Some path management
-    target_path = os.path.join(cfg["save_dir"], cfg["status"], "saved_results")
+    target_path = os.path.join("RESULTS", cfg["save_dir"], cfg["status"], "saved_results", "audio")
 
-    if os.path.exists(target_path):
-        shutil.rmtree(target_path)
+    if overwrite:
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
 
-    if not os.path.exists(os.path.join(target_path, "audio")):
-        os.makedirs(os.path.join(target_path, "audio"))
+    if not os.path.exists(os.path.join(target_path)):
+        os.makedirs(os.path.join(target_path))
 
     filename = (
         os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
@@ -335,9 +337,6 @@ def write_wav(
     gt_labels = np.repeat(np.squeeze(gt_labels, axis=1).T, cfg["tensor_length"])
     pred_labels = np.repeat(pred_labels.T, cfg["tensor_length"])
     distances_to_pos = np.repeat(distances_to_pos.T, cfg["tensor_length"])
-
-    print(arr.shape)
-    print(gt_labels.shape)
 
     # Write the results
     result_wav = np.hstack(
@@ -463,7 +462,6 @@ if __name__ == "__main__":
         query_all_spectrograms,
         query_all_labels,
     ):
-        print(support_all_spectrograms)
         result, pred_labels, gt_labels, distances_to_pos = main(
             cfg,
             meta_df,
@@ -483,8 +481,10 @@ if __name__ == "__main__":
                 pred_labels,
                 distances_to_pos,
                 target_fs=data_hp["target_fs"],
+                overwrite=False
             )
 
     # Return the final product
-    csv_path = os.path.join(cfg["save_dir"], "eval_out.csv")
+    target_path = os.path.join("RESULTS", cfg["save_dir"], cfg["status"], "saved_results")
+    csv_path = os.path.join(target_path, "eval_out.csv")
     results.to_csv(csv_path, index=False)
