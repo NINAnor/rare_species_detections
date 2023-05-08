@@ -309,13 +309,15 @@ def write_wav(
     pred_labels,
     distances_to_pos,
     target_fs=16000,
-    overwrite=False
+    overwrite=False,
 ):
     from scipy.io import wavfile
     import shutil
 
     # Some path management
-    target_path = os.path.join("RESULTS", cfg["save_dir"], cfg["status"], "saved_results", "audio")
+    target_path = os.path.join(
+        "RESULTS", cfg["save_dir"], cfg["status"], "saved_results", "audio"
+    )
 
     if overwrite:
         if os.path.exists(target_path):
@@ -327,6 +329,12 @@ def write_wav(
     filename = (
         os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
     )
+    # Return the final product
+    target_path = os.path.join(
+        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results"
+    )
+    if not os.path.exists(target_path):
+        os.makedirs(target_path)
     output = os.path.join(target_path, filename)
 
     # Find the filepath for the file being analysed
@@ -335,17 +343,38 @@ def write_wav(
             print(os.path.basename(f))
             print(filename)
             arr, _ = librosa.load(f, sr=target_fs, mono=True)
+            break
 
     # Expand the dimensions
-    gt_labels = np.repeat(np.squeeze(gt_labels, axis=1).T, cfg["tensor_length"])
-    pred_labels = np.repeat(pred_labels.T, cfg["tensor_length"])
-    distances_to_pos = np.repeat(distances_to_pos.T, cfg["tensor_length"])
+    gt_labels = np.repeat(
+        np.squeeze(gt_labels, axis=1).T,
+        int(cfg["tensor_length"] * cfg["overlap"] * target_fs / 1000),
+    )
+    pred_labels = np.repeat(
+        pred_labels.T, int(cfg["tensor_length"] * cfg["overlap"] * target_fs / 1000)
+    )
+    distances_to_pos = np.repeat(
+        distances_to_pos.T,
+        int(cfg["tensor_length"] * cfg["overlap"] * target_fs / 1000),
+    )
+
+    # pad with zeros
+    gt_labels = np.pad(
+        gt_labels, (0, len(arr) - len(gt_labels)), "constant", constant_values=(0,)
+    )
+    pred_labels = np.pad(
+        pred_labels, (0, len(arr) - len(pred_labels)), "constant", constant_values=(0,)
+    )
+    distances_to_pos = np.pad(
+        distances_to_pos,
+        (0, len(arr) - len(distances_to_pos)),
+        "constant",
+        constant_values=(0,),
+    )
 
     # Write the results
-    result_wav = np.hstack(
-        (arr, gt_labels, pred_labels, distances_to_pos)
-    )
-    wavfile.write(output, target_fs, result_wav)
+    result_wav = np.vstack((arr, gt_labels, pred_labels, distances_to_pos / 10))
+    wavfile.write(output, target_fs, result_wav.T)
 
 
 if __name__ == "__main__":
@@ -485,7 +514,7 @@ if __name__ == "__main__":
                 pred_labels,
                 distances_to_pos,
                 target_fs=data_hp["target_fs"],
-                overwrite=False
+                overwrite=False,
             )
 
     # Return the final product
