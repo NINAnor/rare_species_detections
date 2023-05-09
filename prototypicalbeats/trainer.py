@@ -25,7 +25,7 @@ class MyLightningCLI(LightningCLI):
 def cli_main():
     MyLightningCLI(
         ProtoBEATsModel,
-        datamodule_class=None,
+        datamodule_class=DCASEDataModule,
         seed_everything_default=42,
     )
 
@@ -34,5 +34,4 @@ if __name__ == "__main__":
     cli_lightning_logo()
     cli_main()
 
-    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run fine_tune/trainer.py fit --help
-    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run fine_tune/trainer.py fit --accelerator gpu --trainer.gpus 1 --data.batch_size 16
+    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run prototypicalbeats/trainer.py fit --trainer.accelerator gpu --trainer.gpus 1 --model.distance mahalanobis
