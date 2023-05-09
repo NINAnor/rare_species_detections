@@ -24,6 +24,7 @@ seaborn = "^0.12.2"
 pytorch-lightning = "1.9.0"
 jsonargparse = {version = "4.17.0", extras = ["signatures"]}
 black = "^23.1.0"
+mir-eval = "0.6"
 
 [tool.poetry.dev-dependencies]
 
