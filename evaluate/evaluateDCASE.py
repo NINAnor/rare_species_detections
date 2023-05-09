@@ -301,11 +301,11 @@ def main(
     )
 
     # Add the filename
-    result_POS_merged["filename"] = filename
+    result_POS_merged["Audiofilename"] = filename + ".wav"
 
     # Place filename as first column
-    f = result_POS_merged.pop("filename")
-    result_POS_merged.insert(0, "filename", f)
+    f = result_POS_merged.pop("Audiofilename")
+    result_POS_merged.insert(0, "Audiofilename", f)
 
     # Return the dataset
     print("[INFO] {} PROCESSED".format(filename))
