@@ -58,7 +58,7 @@ def train_model(
         auto_select_gpus=True,
         callbacks=[pl.callbacks.LearningRateMonitor(logging_interval="step")],
         default_root_dir="logs/",
-        logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
+        # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
 
     # create the model object
@@ -228,7 +228,9 @@ def main(
     assert filename in query_labels
 
     df_support = to_dataframe(support_spectrograms, support_labels)
-    custom_dcasedatamodule = DCASEDataModule(data_frame=df_support)
+    custom_dcasedatamodule = DCASEDataModule(
+        data_frame=df_support, tensor_length=cfg["tensor_length"]
+    )
     label_dic = custom_dcasedatamodule.get_label_dic()
     pos_index = label_dic["POS"]
 
@@ -412,9 +414,10 @@ if __name__ == "__main__":
         cfg = yaml.load(f, Loader=FullLoader)
 
     # Get training config
-    training_config_path = os.path.join(
-        os.path.dirname(os.path.dirname(cfg["model_path"])), "config.yaml"
-    )
+    version_path = os.path.dirname(os.path.dirname(cfg["model_path"]))
+    training_config_path = os.path.join(version_path, "config.yaml")
+    version_name = os.path.basename(version_path)
+
     with open(training_config_path) as f:
         cfg_trainer = yaml.load(f, Loader=FullLoader)
 
@@ -471,7 +474,7 @@ if __name__ == "__main__":
 
     # set target path
     target_path = os.path.join(
-        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results"
+        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results", version_name
     )
     if cli_args.overwrite:
         if os.path.exists(target_path):
