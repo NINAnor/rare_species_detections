@@ -33,6 +33,7 @@ import noisereduce as nr
 PLOT = False
 PLOT_TOO_SHORT_SAMPLES = False
 PLOT_SUPPORT = False
+MAX_SEGMENT_LENGTH = 1.0
 
 
 def normalize_mono(samples):
@@ -116,7 +117,8 @@ def prepare_training_val_data(
                 continue
             # obtain a segment with large margins around event
             extra_time = 3
-            frame_shift = np.round(min_segment_lengths[label] / tensor_length * 1000)
+            segment_length_here = min(min_segment_lengths[label], MAX_SEGMENT_LENGTH)
+            frame_shift = np.round(segment_length_here / tensor_length * 1000)
             frame_shift = 1 if frame_shift < 1 else frame_shift
             start_waveform = int((df["Starttime"][ind] - extra_time) * fs)
 
@@ -354,7 +356,9 @@ def prepare_training_val_data(
 
             # CREATE QUERY SETS
             # obtain file specific frame_shift and save to meta.csv
-            frame_shift = np.round(min_segment_lengths["POS"] / tensor_length * 1000)
+
+            segment_length_here = min(min_segment_lengths["POS"], MAX_SEGMENT_LENGTH)
+            frame_shift = np.round(segment_length_here / tensor_length * 1000)
             frame_shift = 1 if frame_shift < 1 else frame_shift
             with open(
                 os.path.join(target_path, "audio", "meta.csv"),
@@ -405,7 +409,8 @@ def prepare_training_val_data(
                 input_features.append(input_feature.numpy())
                 # check if included in df
                 segment_interval = pd.Interval(
-                    segment_start_ind / 1000, segment_end_ind / 1000
+                    segment_start_ind * frame_shift / 1000,
+                    segment_end_ind * frame_shift / 1000,
                 )
                 is_included = np.any(interval_array.overlaps(segment_interval))
                 # add label
