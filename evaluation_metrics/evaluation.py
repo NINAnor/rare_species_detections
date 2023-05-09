@@ -4,7 +4,7 @@ import os
 import json
 import numpy as np
 import csv
-import evaluation_metrics.metrics
+import evaluation_metrics.metrics as metrics
 from datetime import datetime
 import copy
 from scipy import stats
@@ -322,3 +322,5 @@ if __name__ == "__main__":
     # print(args)
 
     evaluate( args.pred_file, args.ref_files_path, args.team_name, args.dataset, args.savepath)
+
+    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run python evaluation_metrics/evaluation.py -pred_file /data/eval_out.csv -ref_files_path /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/DCASE/Development_Set_annotations/Validation_Set -team_name BEATs -dataset VAL -savepath /data/.

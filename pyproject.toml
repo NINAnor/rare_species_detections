@@ -25,6 +25,7 @@ pytorch-lightning = "1.9.0"
 jsonargparse = {version = "4.17.0", extras = ["signatures"]}
 black = "^23.1.0"
 noisereduce = "^2.0.1"
+mir-eval = "0.6"
 
 [tool.poetry.dev-dependencies]
 

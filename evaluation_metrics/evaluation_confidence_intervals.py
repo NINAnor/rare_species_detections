@@ -4,7 +4,7 @@ import os
 import json
 import numpy as np
 import csv
-import evaluation_metrics.metrics
+import evaluation_metrics.metrics as metrics
 from datetime import datetime
 import copy
 from scipy import stats
