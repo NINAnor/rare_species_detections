@@ -22,7 +22,7 @@ class ProtoBEATsModel(pl.LightningModule):
         num_workers: int = 6,
         model_path: str = "/data/BEATs/BEATs_iter3_plus_AS2M.pt",
         distance: str = "euclidean",
-        embed_space: int = 500, # If too high dimensional the inverse of the covariance matrix is unstable
+        embed_space: int = 100, # If too high dimensional the inverse of the covariance matrix is unstable
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -72,14 +72,15 @@ class ProtoBEATsModel(pl.LightningModule):
             cov_reg = cov + torch.eye(cov.shape[0]).to("cuda") * 1e-4
             cov_inv = torch.pinverse(cov_reg)
             covs.append(cov_inv)
+            #covs.append(cov_reg)
 
         covs_inv = torch.stack(covs).to("cuda")  # Shape: [n_way, 768, 768]
-
         delta = query - z_proto  # Shape: [1, 768]
         delta = delta.unsqueeze(2)  # Shape: [1, 768, 1]
         delta_t = delta.transpose(1, 2)  # Shape: [1, 1, 768]
-
+        print(torch.linalg.solve(delta_t, covs_inv).shape)
         d_squared = torch.matmul(torch.matmul(delta_t, covs_inv), delta)  # Shape: [1, 1, 1]
+        #d_squared = torch.matmul(torch.linalg.solve(delta_t, covs_inv), delta)  # Shape: [1, 1, 1]
         d = torch.sqrt(d_squared.squeeze())  # Shape: [1]
 
         return(d)
