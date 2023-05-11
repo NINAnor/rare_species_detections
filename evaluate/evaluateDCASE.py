@@ -97,12 +97,11 @@ def get_proto_coordinates(model, support_data, support_labels, n_way):
         z_support=z_supports, support_labels=support_labels, n_way=n_way
     )
 
-    # Return the coordinates of the prototypes
-    return prototypes
-
+    # Return the coordinates of the prototypes and the z_supports
+    return prototypes, z_supports
 
 def predict_labels_query(
-    model, queryloader, prototypes, tensor_length, frame_shift, overlap, pos_index
+    model, z_supports, queryloader, prototypes, tensor_length, frame_shift, overlap, pos_index
 ):
     """
     - l_segment to know the length of the segment
@@ -112,12 +111,19 @@ def predict_labels_query(
     model = model.to("cuda")
     prototypes = prototypes.to("cuda")
 
+    # Get POS prototype
+    POS_prototype = prototypes[pos_index].to("cuda")
+    d_supports_to_POS_prototypes, _ = calculate_distance(z_supports.to("cuda"), POS_prototype)
+    mean_dist_supports = d_supports_to_POS_prototypes.mean(0)
+    std_dist_supports = d_supports_to_POS_prototypes.std(0)
+
     # Get the embeddings, the beginning and end of the segment!
     pred_labels = []
     labels = []
     begins = []
     ends = []
     d_to_pos = []
+    z_score_pos = []
 
     for i, data in enumerate(tqdm(queryloader)):
         # Get the embeddings for the query
@@ -135,7 +141,10 @@ def predict_labels_query(
             end = begin + tensor_length * frame_shift / 1000
 
         # Get the scores:
-        classification_scores = calculate_distance(q_embedding, prototypes)
+        classification_scores, dists = calculate_distance(q_embedding, prototypes)
+
+        # Get the z_score:
+        z_score = compute_z_scores(dists[pos_index], mean_dist_supports, std_dist_supports)
 
         # Get the labels (either POS or NEG):
         predicted_labels = torch.max(classification_scores, 0)[
@@ -146,6 +155,7 @@ def predict_labels_query(
         distance_to_pos = classification_scores[pos_index].detach().to("cpu").numpy()
         predicted_labels = predicted_labels.detach().to("cpu").numpy()
         label = label.detach().to("cpu").numpy()
+        z_score = z_score.detach().to("cpu").numpy()
 
         # Return the labels, begin and end of the detection
         pred_labels.append(predicted_labels)
@@ -153,13 +163,26 @@ def predict_labels_query(
         begins.append(begin)
         ends.append(end)
         d_to_pos.append(distance_to_pos)
+        z_score_pos.append(z_score)
+
+    p_values = convert_z_to_p(z_score_pos) 
+
 
     pred_labels = np.array(pred_labels)
     labels = np.array(labels)
     d_to_pos = np.array(d_to_pos)
+    p_values = np.array(z_score_pos)
 
-    return pred_labels, labels, begins, ends, d_to_pos
+    return pred_labels, labels, begins, ends, d_to_pos, p_values
 
+def compute_z_scores(distance, mean_support, sd_support):
+    z_score = (distance - mean_support) / sd_support
+    return z_score
+
+def convert_z_to_p(z_score):
+    import scipy.stats as stats
+    p_value = 1 - stats.norm.cdf(z_score)
+    return p_value
 
 def euclidean_distance(x1, x2):
     return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))
@@ -180,7 +203,7 @@ def calculate_distance(z_query, z_proto):
 
     scores = -dists
 
-    return scores
+    return scores, dists
 
 
 def compute_scores(predicted_labels, gt_labels):
@@ -242,7 +265,7 @@ def main(
     # Get the prototypes coordinates
     a = custom_dcasedatamodule.test_dataloader()
     s, sl, _, _, ways = a
-    prototypes = get_proto_coordinates(model, s, sl, n_way=len(ways))
+    prototypes, z_supports = get_proto_coordinates(model, s, sl, n_way=len(ways))
 
     ### Get the query dataset ###
     df_query = to_dataframe(query_spectrograms, query_labels)
@@ -254,8 +277,9 @@ def main(
     # Get the results
     print("[INFO] DOING THE PREDICTION FOR {}".format(filename))
 
-    predicted_labels, labels, begins, ends, distances_to_pos = predict_labels_query(
+    predicted_labels, labels, begins, ends, distances_to_pos, z_score_pos = predict_labels_query(
         model,
+        z_supports,
         queryLoader,
         prototypes,
         tensor_length=cfg["tensor_length"],
@@ -291,6 +315,7 @@ def main(
     df_result_raw["distance"] = distances_to_pos
     df_result_raw["gt_labels"] = labels
     df_result_raw["filename"] = filename
+    df_result_raw["z_score"] = z_score_pos
     # Filter only the POS results
     result_POS = df_result[df_result["PredLabels"] == "POS"].drop(
         ["PredLabels"], axis=1
@@ -314,6 +339,7 @@ def main(
         predicted_labels,
         labels,
         distances_to_pos,
+        z_score_pos,
         df_result_raw,
     )
 
@@ -324,6 +350,7 @@ def write_wav(
     gt_labels,
     pred_labels,
     distances_to_pos,
+    z_scores_pos,
     target_fs=16000,
     target_path=None,
     frame_shift=1,
@@ -360,6 +387,10 @@ def write_wav(
         distances_to_pos.T,
         int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
     )
+    z_scores_pos = np.repeat(
+        z_scores_pos.T,
+        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
+    )
 
     # pad with zeros
     gt_labels = np.pad(
@@ -374,9 +405,15 @@ def write_wav(
         "constant",
         constant_values=(0,),
     )
+    z_scores_pos = np.pad(
+        z_scores_pos,
+        (0, len(arr) - len(z_scores_pos)),
+        "constant",
+        constant_values=(0,),
+    )
 
     # Write the results
-    result_wav = np.vstack((arr, gt_labels, pred_labels, distances_to_pos / 10))
+    result_wav = np.vstack((arr, gt_labels, pred_labels, distances_to_pos / 10, z_scores_pos))
     wavfile.write(output, target_fs, result_wav.T)
 
 
@@ -422,7 +459,7 @@ if __name__ == "__main__":
         cfg_trainer = yaml.load(f, Loader=FullLoader)
 
     # Get correct paths to dataset
-    data_hp = cfg_trainer["data"]["init_args"]
+    data_hp = cfg_trainer["data"]
     my_hash_dict = {
         "resample": data_hp["resample"],
         "denoise": data_hp["denoise"],
@@ -517,12 +554,10 @@ if __name__ == "__main__":
         query_all_spectrograms,
         query_all_labels,
     ):
-        print(support_all_spectrograms)
         filename = (
             os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
         )
-        print(filename)
-        result, pred_labels, gt_labels, distances_to_pos, result_raw = main(
+        result, pred_labels, gt_labels, distances_to_pos, z_score_pos, result_raw = main(
             cfg,
             meta_df,
             support_spectrograms,
@@ -540,6 +575,7 @@ if __name__ == "__main__":
                 gt_labels,
                 pred_labels,
                 distances_to_pos,
+                z_score_pos,
                 target_fs=data_hp["target_fs"],
                 target_path=target_path,
                 frame_shift=meta_df.loc[filename, "frame_shift"],

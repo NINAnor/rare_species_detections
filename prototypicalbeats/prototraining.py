@@ -58,39 +58,29 @@ class ProtoBEATsModel(pl.LightningModule):
     def euclidean_distance(self, x1, x2):
         return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))
     
-    def mahalanobis_distance(self, query, z_support, support_labels, n_way):
-        #######################################################
-        # DOES NOT TRAIN THE NETWORK PROPERLY AT THE MOMENT ! #
-        #######################################################
-        distances = []
+    def mahalanobis_distance(self, query, z_support, support_labels, n_way, eps=1e-3):
+        z_proto = self.get_prototypes(z_support, support_labels, n_way)
 
+        query_copy = query.clone().detach().requires_grad_(True)
+        z_support_copy = z_support.clone().detach().requires_grad_(True)
+
+        covs = []
         for label in range(n_way):
-            # Get the support samples of the specific class
-            z_support_class = z_support[torch.nonzero(support_labels == label)]
+            z_support_class = z_support_copy[support_labels == label]
+            cov = torch.matmul(z_support_class[:, :, 1].transpose(0, 1), z_support_class[:, :, 1]) / (z_support_class.shape[0] - 1)
+            cov_reg = cov + torch.eye(cov.shape[1]).unsqueeze(0).to("cuda") * eps
+            cov_inv = torch.pinverse(cov_reg)
+            covs.append(cov_inv)
 
-            # Calculate the mean of the samples of the class -> EQUIVALENT TO THE CLASS PROTOTYPE
-            mean = z_support_class.mean(0)
-            
-            # Kind of normalise 
-            norm_z_support_class = (z_support_class - mean).squeeze(1)
+        covs_inv = torch.stack(covs).to("cuda")  # Shape: [n_way, embedding2, embedding2]
 
-            # Compute the covariance matrix
-            cov = torch.matmul(norm_z_support_class.transpose(1,2), norm_z_support_class) / (z_support_class.shape[0] - 1)
-            cov += 1e-6 * torch.eye(cov.shape[1], cov.shape[2], device="cuda")  # Add small constant to diagonal to avoid numerical instability.
-            inv_cov = torch.inverse(cov)
-            
-            # Compute the difference between the query sample and the prototype
-            delta = query - mean
+        delta = query_copy[:, :, 1] - z_proto[:, :, 1]  # Shape: [1, embedding2]
+        delta_t = delta.unsqueeze(1)  # Shape: [1, 1, embedding2]
 
-            # Compute the mahalanobis distance
-            distance_squared = torch.sum(torch.matmul(delta, inv_cov) * delta, dim=1)
-            distance = torch.sqrt(distance_squared)
-            
-            distances.append(distance)
+        d_squared = torch.matmul(torch.matmul(delta_t, covs_inv), delta_t.transpose(1, 2))  # Shape: [1, 1, 1]
+        d = torch.sqrt(d_squared.squeeze())  # Shape: [1]
 
-        distances = torch.vstack(distances)
-
-        return distances
+        return d.squeeze()
         
     def get_prototypes(self, z_support, support_labels, n_way):
         z_proto = torch.cat([
@@ -129,7 +119,6 @@ class ProtoBEATsModel(pl.LightningModule):
         elif self.distance == "mahalanobis":
             for q in z_query:
                 q_dists = self.mahalanobis_distance(q.unsqueeze(0), z_support, support_labels, n_way)
-                print(q_dists.shape)
                 dists.append(q_dists)
         else:
             print("The distance provided is not implemented. Distance can be either euclidean or mahalanobis")
