@@ -266,7 +266,8 @@ def prepare_training_val_data(
     target_path = os.path.join("/data/DCASEfewshot", status, hash_dir_name)
     if overwrite:
         if os.path.exists(target_path):
-            shutil.rmtree(target_path)
+            shutil.rmtree(os.path.join(target_path, "audio"))
+            shutil.rmtree(os.path.join(target_path, "plots"))
 
     if not os.path.exists(os.path.join(target_path, "audio")):
         os.makedirs(os.path.join(target_path, "audio"))
@@ -492,6 +493,7 @@ def prepare_training_val_data(
                 # append pos segment
                 duration = row["Endtime"] - row["Starttime"]
                 margin = min_segment_lengths["POS"] / 3
+                margin = min(margin, 0.05)
                 if duration + 2 * margin < tensor_length * frame_shift / 1000:
                     margin = tensor_length * frame_shift / 1000 - duration
 
