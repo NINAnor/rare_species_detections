@@ -227,7 +227,7 @@ def prepare_training_val_data(
                         + ".png",
                     )
                 )
-            if status == "validate" and len(labels) == len(df):
+            if (status == "validate" or status == "test") and len(labels) == len(df):
                 np.savez(
                     os.path.join(
                         target_path,
@@ -288,7 +288,9 @@ def prepare_training_val_data(
     input_features = []  # list of tuples (input tensor,label)
     save_temp_ind = 0
     for file in tqdm(all_csv_files):
-        if status == "validate":
+        # if not "R4_cleaned recording_TEL_24-10-17" in file:
+        #     continue
+        if status == "validate" or status == "test":
             input_features = []
             labels = []
         # read csv file into df
