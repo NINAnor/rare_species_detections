@@ -92,6 +92,7 @@ def prepare_training_val_data(
     normalize=False,
     resample=False,
     target_fs=16000,
+    overlap=0.5,
 ):
     """Prepare the Training_Set
 
@@ -260,6 +261,8 @@ def prepare_training_val_data(
     }
     if resample:
         my_hash_dict["tartget_fs"] = target_fs
+    if overlap != 0.5:
+        my_hash_dict["overlap"] = overlap
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
@@ -381,7 +384,7 @@ def prepare_training_val_data(
             )
             data = fbank.data[0].T
             # obtain windows and their labels
-            segment_overlap = 0.5
+            segment_overlap = overlap
             segment_hop = int(round(tensor_length * segment_overlap))
             segment_ind = 0
             input_features = []
@@ -603,6 +606,10 @@ if __name__ == "__main__":
         required=False,
         type=int,
     )
+    parser.add_argument(
+        "--overlap", help="overlap", default=0.5, required=False, type=float
+    )
+
     # check input
     cli_args = parser.parse_args()
     assert (
@@ -627,4 +634,5 @@ if __name__ == "__main__":
         cli_args.normalize,
         cli_args.resample,
         cli_args.target_fs,
+        cli_args.overlap,
     )
