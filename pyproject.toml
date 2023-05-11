@@ -6,7 +6,6 @@ authors = ["Benjamin"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-pandas = "^1.4.2"
 scikit-learn = "^1.0.2"
 librosa = "^0.9.1"
 SoundFile = "^0.10.3"
@@ -26,6 +25,7 @@ jsonargparse = {version = "4.17.0", extras = ["signatures"]}
 black = "^23.1.0"
 noisereduce = "^2.0.1"
 mir-eval = "0.6"
+numpy = "1.19.5"
 
 [tool.poetry.dev-dependencies]
 
