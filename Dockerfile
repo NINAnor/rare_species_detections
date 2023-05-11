@@ -8,7 +8,7 @@ RUN \
     apt-get install -qq $PACKAGES && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install poetry
+RUN pip3 install poetry==1.3.2
 
 WORKDIR /app
 COPY pyproject.toml poetry.lock ./
