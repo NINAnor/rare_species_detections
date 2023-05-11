@@ -27,7 +27,12 @@ class AudioDatasetDCASE(Dataset):
             self.label_dict = label_dict
         else:
             self.label_encoder.fit(self.data_frame["category"])
-            self.label_dict = dict(zip(self.label_encoder.classes_, self.label_encoder.transform(self.label_encoder.classes_)))
+            self.label_dict = dict(
+                zip(
+                    self.label_encoder.classes_,
+                    self.label_encoder.transform(self.label_encoder.classes_),
+                )
+            )
 
     def __len__(self):
         return len(self.data_frame)
@@ -51,12 +56,14 @@ class AudioDatasetDCASE(Dataset):
         label = self.label_encoder.transform([label])[0]
 
         return input_feature, label
-    
+
     def get_label_dict(self):
         return self.label_dict
 
 
-def few_shot_dataloader(df, n_way, n_shot, n_query, n_tasks, tensor_length, num_workers):
+def few_shot_dataloader(
+    df, n_way, n_shot, n_query, n_tasks, tensor_length, num_workers
+):
     """
     df: path to the label file
     n_way: number of classes
@@ -65,7 +72,7 @@ def few_shot_dataloader(df, n_way, n_shot, n_query, n_tasks, tensor_length, num_
     n_tasks: number of episodes (number of times the loader gives the data during a training step)
     """
 
-    #audiodatasetdcase = AudioDatasetDCASE(data_frame=df)
+    # audiodatasetdcase = AudioDatasetDCASE(data_frame=df)
 
     sampler = TaskSampler(
         df,
@@ -78,7 +85,7 @@ def few_shot_dataloader(df, n_way, n_shot, n_query, n_tasks, tensor_length, num_
 
     loader = DataLoader(
         df,
-        num_workers = num_workers,
+        num_workers=num_workers,
         batch_sampler=sampler,
         pin_memory=False,
         collate_fn=sampler.episodic_collate_fn,
@@ -91,35 +98,23 @@ class DCASEDataModule(LightningDataModule):
     def __init__(
         self,
         # root_dir_audio: str = "/data/DCASEfewshot/audio/train",
-        data_frame = pd.DataFrame,
+        data_frame=pd.DataFrame,
         n_task_train: int = 100,
         n_task_val: int = 100,
-        status: str = "train",
-        target_fs: int = 16000,
-        resample: bool = False,
-        denoise: bool = False,
-        normalize: bool = False,
-        frame_length: float = 25.0,
         tensor_length: int = 128,
-        set_type: str = "Training_Set",
-        n_shot: int = 2,
-        n_query: int = 3,
+        n_shot: int = 5,
+        n_query: int = 10,
+        n_way: int = 2,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.data_frame = data_frame
         self.n_task_train = n_task_train
         self.n_task_val = n_task_val
-        self.status = status
-        self.target_fs = target_fs
-        self.resample = resample
-        self.denoise = denoise
-        self.normalize = normalize
-        self.frame_length = frame_length
         self.tensor_length = tensor_length
-        self.set_type = set_type
         self.n_shot = n_shot
         self.n_query = n_query
+        self.n_way = n_way
         self.setup()
 
     def setup(self, stage=None):
@@ -128,34 +123,30 @@ class DCASEDataModule(LightningDataModule):
             data_frame=self.data_frame,
         )
 
-
     def train_dataloader(self):
         train_loader = few_shot_dataloader(
             self.complete_dataset,
-            n_way=2,
-            n_shot=2,
-            n_query=3,
+            n_way=self.n_way,
+            n_shot=self.n_shot,
+            n_query=self.n_query,
             n_tasks=self.n_task_train,
             tensor_length=self.tensor_length,
-            num_workers=4
+            num_workers=4,
         )
         return train_loader
-    
-    def test_dataloader(self):
 
+    def test_dataloader(self):
         test_loader = few_shot_dataloader(
             self.complete_dataset,
-            n_way=2,
-            n_shot=5,
-            n_query=0,
+            n_way=self.n_way,
+            n_shot=self.n_shot,
+            n_query=self.n_query,
             n_tasks=self.n_task_train,
             tensor_length=self.tensor_length,
-            num_workers=4
+            num_workers=4,
         )
         return next(iter(test_loader))
-    
+
     def get_label_dic(self):
         label_dic = self.complete_dataset.get_label_dict()
-        return(label_dic)
-
- 
+        return label_dic
