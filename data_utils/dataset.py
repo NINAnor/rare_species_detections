@@ -104,6 +104,7 @@ class TaskSampler(Sampler):
         n_query: int,
         n_tasks: int,
         tensor_length: int = 0,
+        n_subsample: int = 1,
     ):
         """
         Args:
@@ -120,7 +121,7 @@ class TaskSampler(Sampler):
         self.n_query = n_query
         self.n_tasks = n_tasks
         self.tensor_length = tensor_length
-
+        self.n_subsample = n_subsample
         self.items_per_label = {}
         for item, label in enumerate(dataset.get_labels()):
             if label in self.items_per_label.keys():
@@ -168,29 +169,40 @@ class TaskSampler(Sampler):
         true_class_ids = list({x[1] for x in input_data})
         new_input = []
         for x in input_data:
-            if x[0].shape[1] > self.tensor_length:
-                rand_start = torch.randint(0, x[0].shape[1] - self.tensor_length, (1,))
-                new_input.append(
-                    (x[0][:, rand_start : rand_start + self.tensor_length], x[1])
-                )
-            else:
-                new_input.append(x)
+            for _ in range(self.n_subsample):
+                if x[0].shape[1] > self.tensor_length:
+                    rand_start = torch.randint(
+                        0, x[0].shape[1] - self.tensor_length, (1,)
+                    )
+                    new_input.append(
+                        (x[0][:, rand_start : rand_start + self.tensor_length], x[1])
+                    )
+                else:
+                    new_input.append(x)
         all_images = torch.cat([x[0].unsqueeze(0) for x in new_input])
         all_images = all_images.reshape(
-            (self.n_way, self.n_shot + self.n_query, *all_images.shape[1:])
+            (
+                self.n_way,
+                (self.n_shot + self.n_query) * self.n_subsample,
+                *all_images.shape[1:],
+            )
         )
         # pylint: disable=not-callable
-        all_labels = torch.tensor(
-            [true_class_ids.index(x[1]) for x in input_data]
-        ).reshape((self.n_way, self.n_shot + self.n_query))
+        all_labels = (
+            torch.tensor([true_class_ids.index(x[1]) for x in input_data])
+            .repeat_interleave(self.n_subsample)
+            .reshape((self.n_way, (self.n_shot + self.n_query) * self.n_subsample))
+        )
         # pylint: enable=not-callable
 
-        support_images = all_images[:, : self.n_shot].reshape(
+        support_images = all_images[:, : self.n_shot * self.n_subsample].reshape(
             (-1, *all_images.shape[2:])
         )
-        query_images = all_images[:, self.n_shot :].reshape((-1, *all_images.shape[2:]))
-        support_labels = all_labels[:, : self.n_shot].flatten()
-        query_labels = all_labels[:, self.n_shot :].flatten()
+        query_images = all_images[:, self.n_shot * self.n_subsample :].reshape(
+            (-1, *all_images.shape[2:])
+        )
+        support_labels = all_labels[:, : self.n_shot * self.n_subsample].flatten()
+        query_labels = all_labels[:, self.n_shot * self.n_subsample :].flatten()
 
         return (
             support_images,

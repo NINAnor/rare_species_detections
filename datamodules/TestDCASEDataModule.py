@@ -62,7 +62,7 @@ class AudioDatasetDCASE(Dataset):
 
 
 def few_shot_dataloader(
-    df, n_way, n_shot, n_query, n_tasks, tensor_length, num_workers
+    df, n_way, n_shot, n_query, n_tasks, tensor_length, num_workers, n_subsample
 ):
     """
     df: path to the label file
@@ -81,6 +81,7 @@ def few_shot_dataloader(
         n_query=n_query,  # Number of images PER CLASSS in the query set
         n_tasks=n_tasks,  # Not sure
         tensor_length=tensor_length,
+        n_subsample=n_subsample,
     )
 
     loader = DataLoader(
@@ -105,6 +106,7 @@ class DCASEDataModule(LightningDataModule):
         n_shot: int = 5,
         n_query: int = 10,
         n_way: int = 2,
+        n_subsample: int = 1,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -115,6 +117,7 @@ class DCASEDataModule(LightningDataModule):
         self.n_shot = n_shot
         self.n_query = n_query
         self.n_way = n_way
+        self.n_subsample = n_subsample
         self.setup()
 
     def setup(self, stage=None):
@@ -132,6 +135,7 @@ class DCASEDataModule(LightningDataModule):
             n_tasks=self.n_task_train,
             tensor_length=self.tensor_length,
             num_workers=4,
+            n_subsample=self.n_subsample,
         )
         return train_loader
 
@@ -144,6 +148,7 @@ class DCASEDataModule(LightningDataModule):
             n_tasks=self.n_task_train,
             tensor_length=self.tensor_length,
             num_workers=4,
+            n_subsample=self.n_subsample,
         )
         return next(iter(test_loader))
 

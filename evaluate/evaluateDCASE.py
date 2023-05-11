@@ -244,6 +244,7 @@ def main(
         tensor_length=cfg["tensor_length"],
         n_shot=3,
         n_query=2,
+        n_subsample=1,
     )
     label_dic = custom_dcasedatamodule.get_label_dic()
     pos_index = label_dic["POS"]
@@ -304,6 +305,7 @@ def main(
             tensor_length=cfg["tensor_length"],
             n_shot=3 + n_self_detected_supports,
             n_query=2,
+            n_subsample=1,
         )
         label_dic = custom_dcasedatamodule.get_label_dic()
         pos_index = label_dic["POS"]
