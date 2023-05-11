@@ -97,6 +97,7 @@ class DCASEDataModule(LightningDataModule):
         set_type: str = "Training_Set",
         n_shot: int = 5,
         n_query: int = 10,
+        n_way: int = 5,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -113,6 +114,7 @@ class DCASEDataModule(LightningDataModule):
         self.set_type = set_type
         self.n_shot = n_shot
         self.n_query = n_query
+        self.n_way = n_way
         self.setup()
 
     def setup(self, stage=None):
@@ -175,9 +177,9 @@ class DCASEDataModule(LightningDataModule):
     def train_dataloader(self):
         train_loader = few_shot_dataloader(
             self.train_set,
-            n_way=5,
-            n_shot=5,
-            n_query=10,
+            n_way=self.n_way,
+            n_shot=self.n_shot,
+            n_query=self.n_query,
             n_tasks=self.n_task_train,
             tensor_length=self.tensor_length,
         )
@@ -186,9 +188,9 @@ class DCASEDataModule(LightningDataModule):
     def val_dataloader(self):
         val_loader = few_shot_dataloader(
             self.val_set,
-            n_way=5,
-            n_shot=5,
-            n_query=10,
+            n_way=self.n_way,
+            n_shot=self.n_shot,
+            n_query=self.n_query,
             n_tasks=self.n_task_val,
             tensor_length=self.tensor_length,
         )
