@@ -13,10 +13,10 @@ from yaml import FullLoader
 import csv
 import shutil
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
-
+from datetime import datetime
 import torch
 from torch.utils.data import DataLoader
-
+from copy import deepcopy
 from tqdm import tqdm
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
@@ -50,13 +50,18 @@ def train_model(
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
-        max_epochs=max_epochs,
+        max_epochs=-1,
         enable_model_summary=enable_model_summary,
         num_sanity_val_steps=num_sanity_val_steps,
         deterministic=True,
         gpus=1,
         auto_select_gpus=True,
-        callbacks=[pl.callbacks.LearningRateMonitor(logging_interval="step")],
+        callbacks=[
+            pl.callbacks.LearningRateMonitor(logging_interval="step"),
+            pl.callbacks.EarlyStopping(
+                monitor="train_acc", mode="max", patience=max_epochs
+            ),
+        ],
         default_root_dir="logs/",
         # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
@@ -239,7 +244,13 @@ def merge_preds(df, tolerence, tensor_length):
 
 
 def main(
-    cfg, meta_df, support_spectrograms, support_labels, query_spectrograms, query_labels
+    cfg,
+    meta_df,
+    support_spectrograms,
+    support_labels,
+    query_spectrograms,
+    query_labels,
+    n_self_detected_supports,
 ):
     # Get the filename and the frame_shift for the particular file
     filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
@@ -252,7 +263,11 @@ def main(
 
     df_support = to_dataframe(support_spectrograms, support_labels)
     custom_dcasedatamodule = DCASEDataModule(
-        data_frame=df_support, tensor_length=cfg["tensor_length"]
+        data_frame=df_support,
+        tensor_length=cfg["tensor_length"],
+        n_shot=3,
+        n_query=2,
+        n_subsample=1,
     )
     label_dic = custom_dcasedatamodule.get_label_dic()
     pos_index = label_dic["POS"]
@@ -287,6 +302,57 @@ def main(
         overlap=cfg["overlap"],
         pos_index=pos_index,
     )
+
+    if n_self_detected_supports > 0:
+        # find n best predictions
+        n_best_ind = np.argpartition(distances_to_pos, -n_self_detected_supports)[
+            -n_self_detected_supports:
+        ]
+        df_extension_pos = df_query.iloc[n_best_ind]
+        # set labels to POS
+        df_extension_pos["category"] = "POS"
+        # add to support df
+        df_support_extended = df_support.append(df_extension_pos, ignore_index=True)
+        # find n most negative predictions
+        n_neg_ind = np.argpartition(distances_to_pos, n_self_detected_supports)[
+            :n_self_detected_supports
+        ]
+        df_extension_neg = df_query.iloc[n_neg_ind]
+        # set labels to POS
+        df_extension_neg["category"] = "NEG"
+        df_support_extended = df_support_extended.append(
+            df_extension_neg, ignore_index=True
+        )
+        # update custom_dcasedatamodule
+        custom_dcasedatamodule = DCASEDataModule(
+            data_frame=df_support_extended,
+            tensor_length=cfg["tensor_length"],
+            n_shot=3 + n_self_detected_supports,
+            n_query=2,
+            n_subsample=1,
+        )
+        label_dic = custom_dcasedatamodule.get_label_dic()
+        pos_index = label_dic["POS"]
+        # Train the model with the support data
+        print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
+
+        model = training(cfg["model_path"], custom_dcasedatamodule, max_epoch=1)
+
+        # Get the prototypes coordinates
+        a = custom_dcasedatamodule.test_dataloader()
+        s, sl, _, _, ways = a
+        prototypes = get_proto_coordinates(model, s, sl, n_way=len(ways))
+
+        # Get the updated results
+        predicted_labels, labels, begins, ends, distances_to_pos = predict_labels_query(
+            model,
+            queryLoader,
+            prototypes,
+            tensor_length=cfg["tensor_length"],
+            frame_shift=frame_shift,
+            overlap=cfg["overlap"],
+            pos_index=pos_index,
+        )
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(
@@ -356,7 +422,6 @@ def write_wav(
     frame_shift=1,
 ):
     from scipy.io import wavfile
-    import shutil
 
     # Some path management
 
@@ -444,6 +509,14 @@ if __name__ == "__main__":
         action="store_true",
     )
 
+    parser.add_argument(
+        "--n_self_detected_supports",
+        help="Remove earlier obtained results at start",
+        default=0,
+        required=False,
+        type=int,
+    )
+
     cli_args = parser.parse_args()
 
     # Get evalution config
@@ -511,7 +584,12 @@ if __name__ == "__main__":
 
     # set target path
     target_path = os.path.join(
-        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "results", version_name
+        "/data/DCASEfewshot",
+        cfg["status"],
+        hash_dir_name,
+        "results",
+        version_name,
+        "results_{date:%Y%m%d_%H%M%S}".format(date=datetime.now()),
     )
     if cli_args.overwrite:
         if os.path.exists(target_path):
@@ -519,6 +597,14 @@ if __name__ == "__main__":
 
     if not os.path.exists(target_path):
         os.makedirs(target_path)
+
+    # save params for eval
+    param = deepcopy(data_hp)
+    param["overlap"] = cfg["overlap"]
+    param["tolerance"] = cfg["tolerance"]
+    param["n_self_detected_supports"] = cli_args.n_self_detected_supports
+    with open(os.path.join(target_path, "param.json"), "w") as fp:
+        json.dump(param, fp)
 
     # Get all the files from the Validation / Evaluation set - when save wav option -
     if cli_args.wav_save:
@@ -564,6 +650,7 @@ if __name__ == "__main__":
             support_labels,
             query_spectrograms,
             query_labels,
+            cli_args.n_self_detected_supports,
         )
 
         results = results.append(result)

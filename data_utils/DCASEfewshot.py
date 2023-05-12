@@ -92,6 +92,7 @@ def prepare_training_val_data(
     normalize=False,
     resample=False,
     target_fs=16000,
+    overlap=0.5,
 ):
     """Prepare the Training_Set
 
@@ -227,7 +228,7 @@ def prepare_training_val_data(
                         + ".png",
                     )
                 )
-            if status == "validate" and len(labels) == len(df):
+            if (status == "validate" or status == "test") and len(labels) == len(df):
                 np.savez(
                     os.path.join(
                         target_path,
@@ -260,13 +261,16 @@ def prepare_training_val_data(
     }
     if resample:
         my_hash_dict["tartget_fs"] = target_fs
+    if overlap != 0.5:
+        my_hash_dict["overlap"] = overlap
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
     target_path = os.path.join("/data/DCASEfewshot", status, hash_dir_name)
     if overwrite:
         if os.path.exists(target_path):
-            shutil.rmtree(target_path)
+            shutil.rmtree(os.path.join(target_path, "audio"))
+            shutil.rmtree(os.path.join(target_path, "plots"))
 
     if not os.path.exists(os.path.join(target_path, "audio")):
         os.makedirs(os.path.join(target_path, "audio"))
@@ -287,7 +291,9 @@ def prepare_training_val_data(
     input_features = []  # list of tuples (input tensor,label)
     save_temp_ind = 0
     for file in tqdm(all_csv_files):
-        if status == "validate":
+        # if not "R4_cleaned recording_TEL_24-10-17" in file:
+        #     continue
+        if status == "validate" or status == "test":
             input_features = []
             labels = []
         # read csv file into df
@@ -378,7 +384,7 @@ def prepare_training_val_data(
             )
             data = fbank.data[0].T
             # obtain windows and their labels
-            segment_overlap = 0.5
+            segment_overlap = overlap
             segment_hop = int(round(tensor_length * segment_overlap))
             segment_ind = 0
             input_features = []
@@ -492,6 +498,7 @@ def prepare_training_val_data(
                 # append pos segment
                 duration = row["Endtime"] - row["Starttime"]
                 margin = min_segment_lengths["POS"] / 3
+                margin = min(margin, 0.05)
                 if duration + 2 * margin < tensor_length * frame_shift / 1000:
                     margin = tensor_length * frame_shift / 1000 - duration
 
@@ -599,6 +606,10 @@ if __name__ == "__main__":
         required=False,
         type=int,
     )
+    parser.add_argument(
+        "--overlap", help="overlap", default=0.5, required=False, type=float
+    )
+
     # check input
     cli_args = parser.parse_args()
     assert (
@@ -623,4 +634,5 @@ if __name__ == "__main__":
         cli_args.normalize,
         cli_args.resample,
         cli_args.target_fs,
+        cli_args.overlap,
     )

@@ -49,7 +49,9 @@ class AudioDatasetDCASE(Dataset):
         return input_feature, label
 
 
-def few_shot_dataloader(df, n_way, n_shot, n_query, n_tasks, tensor_length):
+def few_shot_dataloader(
+    df, n_way, n_shot, n_query, n_tasks, tensor_length, n_subsample
+):
     """
     root_dir: directory where the audio data is stored
     data_frame: path to the label file
@@ -68,6 +70,7 @@ def few_shot_dataloader(df, n_way, n_shot, n_query, n_tasks, tensor_length):
         n_query=n_query,  # Number of images PER CLASSS in the query set
         n_tasks=n_tasks,  # Not sure
         tensor_length=tensor_length,  # length of model input tensor
+        n_subsample=n_subsample,
     )
 
     loader = DataLoader(
@@ -97,7 +100,9 @@ class DCASEDataModule(LightningDataModule):
         set_type: str = "Training_Set",
         n_shot: int = 5,
         n_query: int = 10,
-        **kwargs
+        n_way: int = 5,
+        n_subsample: int = 1,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.root_dir_meta = root_dir_meta
@@ -113,6 +118,8 @@ class DCASEDataModule(LightningDataModule):
         self.set_type = set_type
         self.n_shot = n_shot
         self.n_query = n_query
+        self.n_way = n_way
+        self.n_subsample = n_subsample
         self.setup()
 
     def setup(self, stage=None):
@@ -175,21 +182,23 @@ class DCASEDataModule(LightningDataModule):
     def train_dataloader(self):
         train_loader = few_shot_dataloader(
             self.train_set,
-            n_way=5,
-            n_shot=5,
-            n_query=10,
+            n_way=self.n_way,
+            n_shot=self.n_shot,
+            n_query=self.n_query,
             n_tasks=self.n_task_train,
             tensor_length=self.tensor_length,
+            n_subsample=self.n_subsample,
         )
         return train_loader
 
     def val_dataloader(self):
         val_loader = few_shot_dataloader(
             self.val_set,
-            n_way=5,
-            n_shot=5,
-            n_query=10,
+            n_way=self.n_way,
+            n_shot=self.n_shot,
+            n_query=self.n_query,
             n_tasks=self.n_task_val,
             tensor_length=self.tensor_length,
+            n_subsample=self.n_subsample,
         )
         return val_loader
