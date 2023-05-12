@@ -105,8 +105,16 @@ def get_proto_coordinates(model, support_data, support_labels, n_way):
     # Return the coordinates of the prototypes and the z_supports
     return prototypes, z_supports
 
+
 def predict_labels_query(
-    model, z_supports, queryloader, prototypes, tensor_length, frame_shift, overlap, pos_index
+    model,
+    z_supports,
+    queryloader,
+    prototypes,
+    tensor_length,
+    frame_shift,
+    overlap,
+    pos_index,
 ):
     """
     - l_segment to know the length of the segment
@@ -118,7 +126,9 @@ def predict_labels_query(
 
     # Get POS prototype
     POS_prototype = prototypes[pos_index].to("cuda")
-    d_supports_to_POS_prototypes, _ = calculate_distance(z_supports.to("cuda"), POS_prototype)
+    d_supports_to_POS_prototypes, _ = calculate_distance(
+        z_supports.to("cuda"), POS_prototype
+    )
     mean_dist_supports = d_supports_to_POS_prototypes.mean(0)
     std_dist_supports = d_supports_to_POS_prototypes.std(0)
 
@@ -149,7 +159,9 @@ def predict_labels_query(
         classification_scores, dists = calculate_distance(q_embedding, prototypes)
 
         # Get the z_score:
-        z_score = compute_z_scores(dists[pos_index], mean_dist_supports, std_dist_supports)
+        z_score = compute_z_scores(
+            dists[pos_index], mean_dist_supports, std_dist_supports
+        )
 
         # Get the labels (either POS or NEG):
         predicted_labels = torch.max(classification_scores, 0)[
@@ -170,24 +182,27 @@ def predict_labels_query(
         d_to_pos.append(distance_to_pos)
         z_score_pos.append(z_score)
 
-    p_values = convert_z_to_p(z_score_pos) 
-
+    p_values = convert_z_to_p(z_score_pos)
 
     pred_labels = np.array(pred_labels)
     labels = np.array(labels)
     d_to_pos = np.array(d_to_pos)
-    p_values = np.array(z_score_pos)
+    p_values = np.array(p_values)
 
     return pred_labels, labels, begins, ends, d_to_pos, p_values
+
 
 def compute_z_scores(distance, mean_support, sd_support):
     z_score = (distance - mean_support) / sd_support
     return z_score
 
+
 def convert_z_to_p(z_score):
     import scipy.stats as stats
+
     p_value = 1 - stats.norm.cdf(z_score)
     return p_value
+
 
 def euclidean_distance(x1, x2):
     return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))
@@ -292,7 +307,14 @@ def main(
     # Get the results
     print("[INFO] DOING THE PREDICTION FOR {}".format(filename))
 
-    predicted_labels, labels, begins, ends, distances_to_pos, z_score_pos = predict_labels_query(
+    (
+        predicted_labels,
+        labels,
+        begins,
+        ends,
+        distances_to_pos,
+        z_score_pos,
+    ) = predict_labels_query(
         model,
         z_supports,
         queryLoader,
@@ -478,7 +500,9 @@ def write_wav(
     )
 
     # Write the results
-    result_wav = np.vstack((arr, gt_labels, pred_labels, distances_to_pos / 10, z_scores_pos))
+    result_wav = np.vstack(
+        (arr, gt_labels, pred_labels, distances_to_pos / 10, z_scores_pos)
+    )
     wavfile.write(output, target_fs, result_wav.T)
 
 
@@ -532,7 +556,7 @@ if __name__ == "__main__":
         cfg_trainer = yaml.load(f, Loader=FullLoader)
 
     # Get correct paths to dataset
-    data_hp = cfg_trainer["data"]
+    data_hp = cfg_trainer["data"]["init_args"]
     my_hash_dict = {
         "resample": data_hp["resample"],
         "denoise": data_hp["denoise"],
@@ -640,10 +664,19 @@ if __name__ == "__main__":
         query_all_spectrograms,
         query_all_labels,
     ):
+        # if not "R4_cleaned recording_TEL_24-10-17" in support_spectrograms:
+        #     continue
         filename = (
             os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
         )
-        result, pred_labels, gt_labels, distances_to_pos, z_score_pos, result_raw = main(
+        (
+            result,
+            pred_labels,
+            gt_labels,
+            distances_to_pos,
+            z_score_pos,
+            result_raw,
+        ) = main(
             cfg,
             meta_df,
             support_spectrograms,
