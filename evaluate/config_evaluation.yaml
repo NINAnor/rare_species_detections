@@ -3,7 +3,7 @@
 #############
 save_dir: "/data/"
 status: "validate"
-
+n_subsample: 1
 ####################
 # Model parameters #
 ####################

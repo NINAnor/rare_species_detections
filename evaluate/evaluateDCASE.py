@@ -282,7 +282,7 @@ def main(
         tensor_length=cfg["tensor_length"],
         n_shot=3,
         n_query=2,
-        n_subsample=1,
+        n_subsample=cfg["n_subsample"],
     )
     label_dic = custom_dcasedatamodule.get_label_dic()
     pos_index = label_dic["POS"]
@@ -351,7 +351,7 @@ def main(
             tensor_length=cfg["tensor_length"],
             n_shot=3 + n_self_detected_supports,
             n_query=2,
-            n_subsample=1,
+            n_subsample=cfg["n_subsample"],
         )
         label_dic = custom_dcasedatamodule.get_label_dic()
         pos_index = label_dic["POS"]
@@ -627,6 +627,7 @@ if __name__ == "__main__":
     param["overlap"] = cfg["overlap"]
     param["tolerance"] = cfg["tolerance"]
     param["n_self_detected_supports"] = cli_args.n_self_detected_supports
+    param["n_subsample"] = cfg["n_subsample"]
     with open(os.path.join(target_path, "param.json"), "w") as fp:
         json.dump(param, fp)
 
