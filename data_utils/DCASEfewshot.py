@@ -258,6 +258,7 @@ def prepare_training_val_data(
         "frame_length": frame_length,
         "tensor_length": tensor_length,
         "set_type": set_type,
+        "overlap": overlap
     }
     if resample:
         my_hash_dict["tartget_fs"] = target_fs
@@ -277,6 +278,10 @@ def prepare_training_val_data(
 
     if not os.path.exists(os.path.join(target_path, "plots")):
         os.makedirs(os.path.join(target_path, "plots"))
+
+    # Save my_hash_dict as a metadata file
+    with open(os.path.join(target_path, 'metadata.json'), 'w') as f:
+        json.dump(my_hash_dict, f)
 
     print("=== Processing data ===")
     # collect all meta files, one for each audio file
@@ -366,6 +371,7 @@ def prepare_training_val_data(
             segment_length_here = min(min_segment_lengths["POS"], MAX_SEGMENT_LENGTH)
             frame_shift = np.round(segment_length_here / tensor_length * 1000)
             frame_shift = 1 if frame_shift < 1 else frame_shift
+            print(file_name)
             with open(
                 os.path.join(target_path, "audio", "meta.csv"),
                 "a",
