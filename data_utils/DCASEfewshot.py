@@ -547,7 +547,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--status",
-        help=" 'train' or 'validate' ",
+        help=" 'train' or 'validate' or 'test'",
         default="train",
         required=False,
         type=str,

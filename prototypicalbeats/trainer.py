@@ -33,5 +33,3 @@ def cli_main():
 if __name__ == "__main__":
     cli_lightning_logo()
     cli_main()
-
-    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run prototypicalbeats/trainer.py fit --trainer.accelerator gpu --trainer.gpus 1 --model.distance mahalanobis

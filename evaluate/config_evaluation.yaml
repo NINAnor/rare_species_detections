@@ -2,21 +2,15 @@
 # Data path #
 #############
 save_dir: "/data/"
-status: "validate"
+status: "test"
 n_subsample: 1
 ####################
 # Model parameters #
 ####################
-model_path: "/app/lightning_logs/version_19/checkpoints/epoch=14-step=1500.ckpt"
+model_path: "/app/lightning_logs/version_96/checkpoints/epoch=85-step=8600.ckpt"
 
 ##################################
 # Prediction segments parameters #
 ##################################
 overlap: 0.5
 tolerance: 0 # How many "gaps" should we allow to merge predictions into a single one
-
-#########################
-# DataLoader parameters #
-#########################
-batch_size: 16
-num_workers: 8 # TODO check if actually used

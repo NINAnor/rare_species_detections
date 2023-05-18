@@ -1,0 +1,165 @@
+# Submission information
+submission:
+  # Submission label
+  # Label is used to index submissions, to avoid overlapping codes among submissions
+  # use the following way to form your label:
+  # [Last name of corresponding author]_[Abbreviation of institute of the corresponding author]_task[task number]_[index number of your submission (1-4)]
+  label: Gelderblom_SINTEF_task5_2
+
+  # Submission name
+  # This name will be used in the results tables when space permits
+  name: FEW-SHOT BIOACOUSTIC EVENT DETECTION USING BEATS
+
+  # Submission name abbreviated
+  # This abbreviated name will be used in the results table when space is tight, maximum 10 characters
+  abbreviation: HateDocker
+
+  # Submission authors in order, mark one of the authors as corresponding author.
+  authors:
+    # First author
+    - lastname: Gelderblom
+      firstname: Femke
+      email: femke.gelderblom@sintef.no                    # Contact email address
+      corresponding: true                             # Mark true for one of the authors
+
+      # Affiliation information for the author
+      affiliation:
+        abbreviation: SINTEF
+        institute: SINTEF
+        department: Acoustics, SINTEF Digital
+        location: Trondheim, Norway
+
+    # Second author
+    - lastname: Cretois
+      firstname: Benjamin
+      email: benjamin.cretois@nina.no                # Contact email address
+
+      # Affiliation information for the author
+      affiliation:
+        abbreviation: NINA
+        institute: Norwegian Institute for Nature Research
+        department: Environmental data
+        location: Trondheim, Norway
+
+    # Third author
+    - lastname: Johnsen
+      firstname: Pal
+      email: pal.johnsen@sintef.no              # Contact email address
+
+      # Affiliation information for the author
+      affiliation:
+        abbreviation: SINTEF
+        institute: SINTEF
+        department: Mathematics and Cybernetics, SINTEF Digital
+        location: Oslo, Norway
+
+    # Fourth author
+    - lastname: Remonato
+      firstname: Filippo
+      email: fillipo.remonato@sintef.no              # Contact email address
+
+      # Affiliation information for the author
+      affiliation:
+        abbreviation: SINTEF
+        institute: SINTEF
+        department: Mathematics and Cybernetics, SINTEF Digital
+        location: Oslo, Norway
+
+    # Fifth author
+    - lastname: Reinen
+      firstname: Tor Arne
+      email: tor.a.reinen@sintef.no                    # Contact email address               
+
+      # Affiliation information for the author
+      affiliation:
+        abbreviation: SINTEF
+        institute: SINTEF
+        department: Acoustics, SINTEF Digital
+        location: Trondheim, Norway
+
+# System information
+system:
+  # SED system description, meta data provided here will be used to do
+  # meta analysis of the submitted system. Use general level tags, if possible use the tags provided in comments.
+  # If information field is not applicable to the system, use "!!null".
+  description:
+
+    # Audio input
+    input_sampling_rate: 16000             # In kHz
+
+    # Acoustic representation
+    acoustic_features: mel-spectrogram   # e.g one or multiple [MFCC, log-mel energies, spectrogram, CQT, PCEN, ...]
+
+    # Data augmentation methods
+    data_augmentation: [time stretching, denoising]            # [time stretching, block mixing, pitch shifting, ...]
+
+    # Embeddings
+    # e.g. VGGish, OpenL3, ...
+    embeddings: BEATs
+
+    # Machine learning
+    # In case using ensemble methods, please specify all methods used (comma separated list).
+    machine_learning_method: transformer       # e.g one or multiple [GMM, HMM, SVM, kNN, MLP, CNN, RNN, CRNN, NMF, random forest, ensemble, transformer, ...]
+    # the system adaptation for "few shot" scenario.
+    # For example, if machine_learning_method is "CNN", the few_shot_method might use one of [fine tuning, prototypical, MAML] in addition to the standard CNN architecture.
+    few_shot_method: prototypical      # e.g [fine tuning, prototypical, MAML, nearest neighbours...]
+
+    # External data usage method
+    # e.g. directly, embeddings, pre-trained model, ...
+    external_data_usage: !!null
+
+    # Ensemble method subsystem count
+    # In case ensemble method is not used, mark !!null.
+    ensemble_method_subsystem_count: !!null # [2, 3, 4, 5, ... ]
+
+    # Decision making methods (for ensemble)
+    decision_making: !!null                 # [majority vote, ...]
+
+    # Post-processing, followed by the time span (in ms) in case of smoothing
+    post-processing: threshold				# [median filtering, time aggregation...]
+
+  # System complexity, meta data provided here will be used to evaluate
+  # submitted systems from the computational load perspective.
+  complexity:
+
+    # Total amount of parameters used in the acoustic model. For neural networks, this
+    # information is usually given before training process in the network summary.
+    # For other than neural networks, if parameter count information is not directly available,
+    # try estimating the count as accurately as possible.
+    # In case of ensemble approaches, add up parameters for all subsystems.
+    total_parameters: 90M    # note that for simple template matching, the "parameters"==the pixel count of the templates, plus 1 for each param such as thresholding. 
+    # Approximate training time followed by the hardware used
+    trainining_time: 2hours
+    # Model size in MB
+    model_size: 361
+
+
+  # URL to the source code of the system [optional, highly recommended]
+  source_code:   
+
+  # List of external datasets used in the submission.
+  # A previous DCASE development dataset is used here only as example! List only external datasets
+  external_datasets:
+    # Dataset name
+    - name: !!null
+      # Dataset access url
+      url: !!null
+      # Total audio length in minutes
+      total_audio_length: !!null            # minutes
+
+# System results 
+results:
+  # Full results are not mandatory, but for through analysis of the challenge submissions recommended.
+  # If you cannot provide all result details, also incomplete results can be reported.
+  validation_set:
+    overall:
+      F-score: 36.6
+
+    # Per-dataset
+    dataset_wise:
+      HB:
+        F-score: 82.5
+      ME:
+        F-score: 68
+      PB:
+        F-score: 18.2

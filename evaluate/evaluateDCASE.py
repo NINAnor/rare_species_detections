@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
-from datamodules.audiolist import AudioList
+from data_utils.audiolist import AudioList
 
 import pytorch_lightning as pl
 
@@ -63,6 +63,7 @@ def train_model(
             ),
         ],
         default_root_dir="logs/",
+        enable_checkpointing=False
         # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
 
