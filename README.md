@@ -1,4 +1,6 @@
-# DCASE2023: FEW-SHOT BIOACOUSTIC EVENT DETECTION USING BEATS
+# DCASE2023: FEW-SHOT BIOACOUSTIC EVENT DETECTION USING BEATS, ADAPTIVE FRAME-SHIFTS AND SPECTRAL GATING
+
+[![DOI](https://zenodo.org/badge/597046464.svg)](https://zenodo.org/badge/latestdoi/597046464)
 
 **Few-shot learning is a highly promising paradigm for sound event detection. It is also an extremely good fit to the needs of users in bioacoustics, in which increasingly large acoustic datasets commonly need to be labelled for events of an identified category** (e.g. species or call-type), even though this category might not be known in other datasets or have any yet-known label. While satisfying user needs, this will also benchmark few-shot learning for the wider domain of sound event detection (SED).
 
