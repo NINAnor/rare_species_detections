@@ -364,11 +364,19 @@ def main(
         # Get the prototypes coordinates
         a = custom_dcasedatamodule.test_dataloader()
         s, sl, _, _, ways = a
-        prototypes = get_proto_coordinates(model, s, sl, n_way=len(ways))
+        prototypes, z_supports = get_proto_coordinates(model, s, sl, n_way=len(ways))
 
         # Get the updated results
-        predicted_labels, labels, begins, ends, distances_to_pos = predict_labels_query(
+        (
+            predicted_labels,
+            labels,
+            begins,
+            ends,
+            distances_to_pos,
+            z_score_pos,
+        ) = predict_labels_query(
             model,
+            z_supports,
             queryLoader,
             prototypes,
             tensor_length=cfg["tensor_length"],
@@ -571,6 +579,8 @@ if __name__ == "__main__":
     )
     if data_hp["resample"]:
         my_hash_dict["tartget_fs"] = data_hp["target_fs"]
+    if cfg["overlap"] != 0.5:
+        my_hash_dict["overlap"] = cfg["overlap"]
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
@@ -666,8 +676,6 @@ if __name__ == "__main__":
         query_all_spectrograms,
         query_all_labels,
     ):
-        # if not "R4_cleaned recording_TEL_24-10-17" in support_spectrograms:
-        #     continue
         filename = (
             os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
         )
