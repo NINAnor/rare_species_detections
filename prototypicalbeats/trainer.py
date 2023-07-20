@@ -4,7 +4,7 @@ from pytorch_lightning import cli_lightning_logo
 from pytorch_lightning.cli import LightningCLI
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
-from datamodules.miniECS50DataModule import miniECS50DataModule
+#from datamodules.miniECS50DataModule import miniECS50DataModule
 from datamodules.DCASEDataModule import DCASEDataModule
 from callbacks.callbacks import MilestonesFinetuning
 
@@ -15,7 +15,6 @@ class MyLightningCLI(LightningCLI):
         parser.link_arguments("finetuning.milestones", "model.milestones")
         parser.set_defaults(
             {
-                "trainer.max_epochs": 15,
                 "trainer.enable_model_summary": False,
                 "trainer.num_sanity_val_steps": 0,
             }

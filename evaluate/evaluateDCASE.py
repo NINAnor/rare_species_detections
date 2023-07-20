@@ -280,10 +280,10 @@ def main(
     df_support = to_dataframe(support_spectrograms, support_labels)
     custom_dcasedatamodule = DCASEDataModule(
         data_frame=df_support,
-        tensor_length=cfg["tensor_length"],
+        tensor_length=cfg["data"]["tensor_length"],
         n_shot=3,
         n_query=2,
-        n_subsample=cfg["n_subsample"],
+        n_subsample=cfg["data"]["n_subsample"],
     )
     label_dic = custom_dcasedatamodule.get_label_dic()
     pos_index = label_dic["POS"]
@@ -291,7 +291,7 @@ def main(
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
 
-    model = training(cfg["model_path"], custom_dcasedatamodule, max_epoch=1)
+    model = training(cfg["model"]["model_path"], custom_dcasedatamodule, max_epoch=cfg["trainer"]["max_epochs"])
 
     # Get the prototypes coordinates
     a = custom_dcasedatamodule.test_dataloader()
@@ -320,9 +320,9 @@ def main(
         z_supports,
         queryLoader,
         prototypes,
-        tensor_length=cfg["tensor_length"],
+        tensor_length=cfg["data"]["tensor_length"],
         frame_shift=frame_shift,
-        overlap=cfg["overlap"],
+        overlap=cfg["data"]["overlap"],
         pos_index=pos_index,
     )
 
@@ -349,17 +349,17 @@ def main(
         # update custom_dcasedatamodule
         custom_dcasedatamodule = DCASEDataModule(
             data_frame=df_support_extended,
-            tensor_length=cfg["tensor_length"],
+            tensor_length=cfg["data"]["tensor_length"],
             n_shot=3 + n_self_detected_supports,
             n_query=2,
-            n_subsample=cfg["n_subsample"],
+            n_subsample=cfg["data"]["n_subsample"],
         )
         label_dic = custom_dcasedatamodule.get_label_dic()
         pos_index = label_dic["POS"]
         # Train the model with the support data
         print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
 
-        model = training(cfg["model_path"], custom_dcasedatamodule, max_epoch=1)
+        model = training(cfg["model"]["model_path"], custom_dcasedatamodule, max_epoch=1)
 
         # Get the prototypes coordinates
         a = custom_dcasedatamodule.test_dataloader()
@@ -379,9 +379,9 @@ def main(
             z_supports,
             queryLoader,
             prototypes,
-            tensor_length=cfg["tensor_length"],
+            tensor_length=cfg["data"]["tensor_length"],
             frame_shift=frame_shift,
-            overlap=cfg["overlap"],
+            overlap=cfg["data"]["overlap"],
             pos_index=pos_index,
         )
 
@@ -419,7 +419,7 @@ def main(
     )
 
     result_POS_merged = merge_preds(
-        df=result_POS, tolerence=cfg["tolerance"], tensor_length=cfg["tensor_length"]
+        df=result_POS, tolerence=cfg["tolerance"], tensor_length=cfg["data"]["tensor_length"]
     )
 
     # Add the filename
@@ -473,19 +473,19 @@ def write_wav(
     # Expand the dimensions
     gt_labels = np.repeat(
         np.squeeze(gt_labels, axis=1).T,
-        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
+        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
     )
     pred_labels = np.repeat(
         pred_labels.T,
-        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
+        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
     )
     distances_to_pos = np.repeat(
         distances_to_pos.T,
-        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
+        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
     )
     z_scores_pos = np.repeat(
         z_scores_pos.T,
-        int(cfg["tensor_length"] * cfg["overlap"] * target_fs * frame_shift / 1000),
+        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
     )
 
     # pad with zeros
@@ -522,7 +522,7 @@ if __name__ == "__main__":
         "--config",
         help="Path to the config file",
         required=False,
-        default="./evaluate/config_evaluation.yaml",
+        default="./CONFIG.yaml",
         type=str,
     )
 
@@ -550,6 +550,14 @@ if __name__ == "__main__":
         type=int,
     )
 
+    parser.add_argument(
+        "--tolerance",
+        help="How many non detection in detection still counts for a detection",
+        default=0,
+        required=False,
+        type=int,
+    )
+
     cli_args = parser.parse_args()
 
     # Get evalution config
@@ -557,70 +565,67 @@ if __name__ == "__main__":
         cfg = yaml.load(f, Loader=FullLoader)
 
     # Get training config
-    version_path = os.path.dirname(os.path.dirname(cfg["model_path"]))
+    version_path = os.path.dirname(os.path.dirname(cfg["model"]["model_path"]))
     training_config_path = os.path.join(version_path, "config.yaml")
     version_name = os.path.basename(version_path)
 
-    with open(training_config_path) as f:
-        cfg_trainer = yaml.load(f, Loader=FullLoader)
-
     # Get correct paths to dataset
-    data_hp = cfg_trainer["data"]["init_args"]
     my_hash_dict = {
-        "resample": data_hp["resample"],
-        "denoise": data_hp["denoise"],
-        "normalize": data_hp["normalize"],
-        "frame_length": data_hp["frame_length"],
-        "tensor_length": data_hp["tensor_length"],
+        "resample": cfg["data"]["resample"],
+        "denoise": cfg["data"]["denoise"],
+        "normalize": cfg["data"]["normalize"],
+        "frame_length": cfg["data"]["frame_length"],
+        "tensor_length": cfg["data"]["tensor_length"],
+        "set_type": cfg["data"]["set_type"],
+        "overlap": cfg["data"]["overlap"]
     }
-    assert cfg["status"] == "validate" or cfg["status"] == "test"
-    my_hash_dict["set_type"] = (
-        "Validation_Set" if cfg["status"] == "validate" else "Evaluation_Set"
-    )
-    if data_hp["resample"]:
-        my_hash_dict["tartget_fs"] = data_hp["target_fs"]
-    if cfg["overlap"] != 0.5:
-        my_hash_dict["overlap"] = cfg["overlap"]
+    if cfg["data"]["resample"]:
+        my_hash_dict["tartget_fs"] = cfg["data"]["target_fs"]
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
 
-    # ensure cfg of evaluation knows preprocessing tensor_length
-    cfg["tensor_length"] = data_hp["tensor_length"]
-
     # get meta, support and query paths
     support_data_path = os.path.join(
         "/data/DCASEfewshot",
-        cfg["status"],
+        cfg["data"]["status"],
         hash_dir_name,
         "audio",
         "support_data_*.npz",
     )
     support_labels_path = os.path.join(
         "/data/DCASEfewshot",
-        cfg["status"],
+        cfg["data"]["status"],
         hash_dir_name,
         "audio",
         "support_labels_*.npy",
     )
     query_data_path = os.path.join(
-        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "audio", "query_data_*.npz"
+        "/data/DCASEfewshot", 
+        cfg["data"]["status"], 
+        hash_dir_name, 
+        "audio", 
+        "query_data_*.npz"
     )
     query_labels_path = os.path.join(
         "/data/DCASEfewshot",
-        cfg["status"],
+        cfg["data"]["status"],
         hash_dir_name,
         "audio",
         "query_labels_*.npy",
     )
     meta_df_path = os.path.join(
-        "/data/DCASEfewshot", cfg["status"], hash_dir_name, "audio", "meta.csv"
+        "/data/DCASEfewshot", 
+        cfg["data"]["status"], 
+        hash_dir_name, 
+        "audio", 
+        "meta.csv"
     )
 
     # set target path
     target_path = os.path.join(
         "/data/DCASEfewshot",
-        cfg["status"],
+        cfg["data"]["status"],
         hash_dir_name,
         "results",
         version_name,
@@ -634,11 +639,11 @@ if __name__ == "__main__":
         os.makedirs(target_path)
 
     # save params for eval
-    param = deepcopy(data_hp)
-    param["overlap"] = cfg["overlap"]
-    param["tolerance"] = cfg["tolerance"]
+    param = deepcopy(cfg)
+    param["overlap"] = cfg["data"]["overlap"]
+    param["tolerance"] = cli_args.tolerance
     param["n_self_detected_supports"] = cli_args.n_self_detected_supports
-    param["n_subsample"] = cfg["n_subsample"]
+    param["n_subsample"] = cfg["data"]["n_subsample"]
     with open(os.path.join(target_path, "param.json"), "w") as fp:
         json.dump(param, fp)
 
@@ -687,7 +692,7 @@ if __name__ == "__main__":
             z_score_pos,
             result_raw,
         ) = main(
-            cfg,
+            param,
             meta_df,
             support_spectrograms,
             support_labels,
@@ -701,12 +706,12 @@ if __name__ == "__main__":
         if cli_args.wav_save:
             write_wav(
                 files,
-                cfg,
+                param,
                 gt_labels,
                 pred_labels,
                 distances_to_pos,
                 z_score_pos,
-                target_fs=data_hp["target_fs"],
+                target_fs=cfg["data"]["target_fs"],
                 target_path=target_path,
                 frame_shift=meta_df.loc[filename, "frame_shift"],
             )

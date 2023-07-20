@@ -4,7 +4,7 @@
 
 **Few-shot learning is a highly promising paradigm for sound event detection. It is also an extremely good fit to the needs of users in bioacoustics, in which increasingly large acoustic datasets commonly need to be labelled for events of an identified category** (e.g. species or call-type), even though this category might not be known in other datasets or have any yet-known label. While satisfying user needs, this will also benchmark few-shot learning for the wider domain of sound event detection (SED).
 
-<p align="center"><img src="images/VM.png" alt="figure" width="400"/></p>
+<p align="center"><img src="images/VM.png" alt="figure" width="400" height="400"/></p>
 
 **Few-shot learning describes tasks in which an algorithm must make predictions given only a few instances of each class, contrary to standard supervised learning paradigm.** The main objective is to find reliable algorithms that are capable of dealing with data sparsity, class imbalance and noisy/busy environments. Few-shot learning is usually studied using N-way-K-shot classification, where N denotes the number of classes and K the number of examples for each class.
 
@@ -20,147 +20,62 @@ This repository's main objective is to keep active to tackle future DCASE challe
 
 In this section are listed the requirements. Note that we make extensive use of [Docker](https://docs.docker.com/get-docker/) for easier reproducibility.
 
-### Download
-
-- The model: [BEATs_iter3+ (AS2M) model](https://msranlcmtteamdrive.blob.core.windows.net/share/BEATs/BEATs_iter3_plus_AS2M.pt?sv=2020-08-04&st=2022-12-18T10%3A40%3A53Z&se=3022-12-19T10%3A40%3A00Z&sr=b&sp=r&sig=SKBQMA7MRAMFv7Avyu8a4EkFOlkEhf8nF0Jc2wlYd%2B0%3D)**
-- The development dataset: [DCASE Development dataset](https://dcase.community/challenge2023/task-few-shot-bioacoustic-event-detection#development-set)
-- The evaluation dataset: [DCASE Evaluation dataset](https://dcase.community/challenge2023/task-few-shot-bioacoustic-event-detection#evaluation-set)
-
-
-Once the necessary files are download, place them in a folder `data` so that the structure is similar as the structure displayed below. Note that the folder structure is important as some path were hardcoded to facilitate reproducibility and speed of workflow.
-
-Note that the `Evaluation_Set` is not exactly of the same structure as `Training/Validation_Set` and some manual manipulation is needed.
-
-```bash
-   .
-   |-BEATs
-   |-DCASE
-   |---Development_Set
-   |-----Evaluation_Set
-   |-------CHE
-   |-------CHE23
-   |-------CT
-   |-------CW
-   |-------DC
-   |-------MGE
-   |-------MS
-   |-------QU
-   |-----Training_Set
-   |-------BV
-   |-------HT
-   |-------JD
-   |-------MT
-   |-------WMW
-   |-----Validation_Set
-   |-------HB
-   |-------ME
-   |-------PB
-   |---Development_Set_annotations
-   |-----Evaluation_Set
-   |-------Annotations_only
-   |---------CHE
-   |---------CHE23
-   |---------CT
-   |---------CW
-   |---------DC
-   |---------MGE
-   |---------MS
-   |---------QU
-   |-------__MACOSX
-   |---------Annotations_only
-   |-----------CHE
-   |-----------CHE23
-   |-----------CT
-   |-----------CW
-   |-----------DC
-   |-----------MGE
-   |-----------MS
-   |-----------QU
-   |-----Training_Set
-   |-------BV
-   |-------HT
-   |-------JD
-   |-------MT
-   |-------WMW
-   |-----Validation_Set
-   |-------HB
-   |-------ME
-   |-------PB
-```
-
 ### Setup
 
-Once the necessary files have been dowloaded, clone the repository:
+We have made a small wrapper to download the DCASE data and the BEATs model. Only the base folder needs to be specified:
 
 ```bash
-cd ~
-git clone https://github.com/NINAnor/rare_species_detections.git
+./dcase_setup.sh /BASE/FOLDER/
 ```
 
-It is now possible to build the Docker image:
+The script should create a `DCASE` folder containing all the [DCASE data (i.e. Development and Evaluation set)](https://dcase.community/challenge2023/task-few-shot-bioacoustic-event-detection#validation-set) and a `BEATs` folder containing the [model weights](https://github.com/microsoft/unilm/tree/master/beats) in the specified base folder.
+
+Once the necessary files have been dowloaded, you can either pull the Docker image and rename it:
 
 ```bash
+docker pull docker pull ghcr.io/ninanor/rare_species_detections:main
+docker tag docker pull ghcr.io/ninanor/rare_species_detections:main dcase
+```
+
+Or create the Docker image from the Dockerfile located in our repository:
+
+```bash
+git clone https://github.com/NINAnor/rare_species_detections.git
 cd rare_species_detections
 docker build -t dcase -f Dockerfile .
 ```
 
-You should now be ready to run the scripts!
+## Processing the data
 
-## Training the prototypical model
-
-First we need to parse the `Development_Set` using `data_utils/DCASEfewshot.py`. Please change the path as needed.
+First we need to process the DCASE data (i.e. denoising, resampling ... and saving the data as numpy array). For this we can use:
 
 ```bash
-DATA_DIR=/home/data/
-CODE_DIR=/home/rare_species_detections
-
-docker run -v $CODE_DIR:/app \
-            -v $DATA_DIR:/data \
-            --gpus all \
-            dcase \
-            poetry run python /app/data_utils/DCASEfewshot.py \
-                --set_type Training_Set \
-                --status train \
-                --overwrite \
-                --resample \
-                --denoise \
-                --normalize \
-                --tensor_length 128 \
-                --overlap 0.5
+./preprocess_data.sh /BASE/FOLDER
 ```
 
-The script creates a folder `DCASEfewshot/train` in your `$DATA_DIR`. It contains the parsed data that will be used to train the prototypical network.
+The script will create a new folder `DCASEfewshot` containing three subfolders (`train`, `validate` and `evaluate`). Each of these folder contains the processed data in the form of `numpy arrays`.
+
+## Train the model
 
 It is now possible to train the network using `prototypicalbeats/trainer.py`:
 
 ```bash 
-docker run -v $CODE_DIR:/app \
-            -v $DATA_DIR:/data \ 
-            --gpus all \
-            dcase \
-            poetry run prototypicalbeats/trainer.py fit \
-            --trainer.accelerator gpu \
-            --trainer.gpus 1 \
-            --model.distance euclidean
+./train_model.sh /BASE/FOLDER
 ```
 
-The training script should create a folder (`lightning_logs/`) in which the model weights (`version_X/checkpoints/*.ckpt`) and the training configuration (`version_X/checkpoints/config.yaml`) are stored. 
+The training script should create a `log` folder in the base folder (`lightning_logs/`) in which the model weights (`version_X/checkpoints/*.ckpt`) and the training configuration (`version_X/checkpoints/config.yaml`) are stored. 
 
 ## Using the model on the Validation / Evaluation dataset
 
-To run the prediction use the script `evaluate/evaluateDCASE.py`. Note that the file `evaluate/config_evaluation.yaml` contains parameters that needs to be changed depending on the need. In particular you will need to change the `model_path` and `status` (either `test` or `validate`).
+To run the prediction use the script `test_model`. Note that the file `CONFIG.yaml` file need to be updated. In particular you will need to change the `model_path`, `status` (either `test` or `validate`). and `set_type` (`Validation_Set` or `Evaluation_Set`)
 
 ```bash
-docker run -v $CODE_DIR:/app \
-            -v $DATA_DIR:/data \ 
-            --gpus all \
-            dcase \
-            poetry run python /app/evaluate/evaluateDCASE.py \
-            --wav_save \
-            --overwrite
+./test_model.sh /BASE/FOLDER
 ```
 
-`evaluateDCASE.py` creates a result file `eval_out.csv` in `$DATA_DIR` containing all the detections made the model. If `--wav_save` is specified, the script will also return a `.wav` file for all files containing additional channels: the ground truth labels, the predicted labels, the distance to the POS prototype and finally the p-values. The `.wav` file can be opened in [Audacity](https://www.audacityteam.org/) to be inspected more closely.
+`test_model.sh` creates a result file `eval_out.csv` in the `BASE/FOLDER` containing all the detections made the model. 
+
+Note that there are other advanced options. For instance, if `--wav_save` is specified, the script will also return a `.wav` file for all files containing additional channels: the ground truth labels, the predicted labels, the distance to the POS prototype and finally the p-values. The `.wav` file can be opened in [Audacity](https://www.audacityteam.org/) to be inspected more closely.
 
 ## Computing the resulting metrics
 

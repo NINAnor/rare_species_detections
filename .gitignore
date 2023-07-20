@@ -1,4 +1,3 @@
-*.png
 lightning_logs/*
 prototypicalbeats/lightning_logs/*
 data/

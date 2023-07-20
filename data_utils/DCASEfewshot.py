@@ -262,8 +262,6 @@ def prepare_training_val_data(
     }
     if resample:
         my_hash_dict["tartget_fs"] = target_fs
-    if overlap != 0.5:
-        my_hash_dict["overlap"] = overlap
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
@@ -564,57 +562,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--overwrite",
         help="If there's an existing folder, should it be deleted?",
-        default=False,
-        required=False,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--normalize",
-        help="Normalize the waveform during preprocessing?",
-        default=False,
+        default=True,
         required=False,
         action="store_true",
     )
 
     parser.add_argument(
-        "--resample",
-        help="Resample the waveform during preprocessing?",
-        default=False,
+        "--config",
+        help="Path to the config file",
+        default="./CONFIG.yaml",
         required=False,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--target_fs",
-        help="Sampling frequency to resample to if --resample is True",
-        default=16000,
-        required=False,
-        type=int,
+        type=str,
     )
 
-    parser.add_argument(
-        "--frame_length",
-        help="Frame length in ms for the mel features",
-        default=25.0,
-        required=False,
-        type=float,
-    )
-    parser.add_argument(
-        "--denoise",
-        help="Should waveform be denoised during preprocessing?",
-        default=False,
-        required=False,
-        action="store_true",
-    )
-    parser.add_argument(
-        "--tensor_length",
-        help="Length of the final feature tensor",
-        default=128,
-        required=False,
-        type=int,
-    )
-    parser.add_argument(
-        "--overlap", help="overlap", default=0.5, required=False, type=float
-    )
 
     # check input
     cli_args = parser.parse_args()
@@ -630,15 +590,22 @@ if __name__ == "__main__":
     elif cli_args.status == "test":
         assert cli_args.set_type == "Evaluation_Set"
 
+    # Open the config file
+    import yaml
+    from yaml import FullLoader
+
+    with open(cli_args.config) as f:
+        cfg = yaml.load(f, Loader=FullLoader)
+
     prepare_training_val_data(
         cli_args.status,
         cli_args.set_type,
         cli_args.overwrite,
-        cli_args.tensor_length,
-        cli_args.frame_length,
-        cli_args.denoise,
-        cli_args.normalize,
-        cli_args.resample,
-        cli_args.target_fs,
-        cli_args.overlap,
+        cfg["data"]["tensor_length"],
+        cfg["data"]["frame_length"],
+        cfg["data"]["denoise"],
+        cfg["data"]["normalize"],
+        cfg["data"]["resample"],
+        cfg["data"]["target_fs"],
+        cfg["data"]["overlap"],
     )

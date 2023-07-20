@@ -13,11 +13,5 @@ for SET in "${!SETS[@]}"; do
             dcase \
             poetry run python /app/data_utils/DCASEfewshot.py \
                 --set_type $SET \
-                --status $STATUS \
-                --overwrite \
-                --resample \
-                --denoise \
-                --normalize \
-                --tensor_length 128 \
-                --overlap 0.5
+                --status $STATUS
 done
