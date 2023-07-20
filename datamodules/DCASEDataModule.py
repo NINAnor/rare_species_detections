@@ -87,7 +87,6 @@ class DCASEDataModule(LightningDataModule):
     def __init__(
         self,
         # root_dir_audio: str = "/data/DCASEfewshot/audio/train",
-        root_dir_meta: str = "/data/DCASEfewshot/meta",
         n_task_train: int = 100,
         n_task_val: int = 100,
         status: str = "train",
@@ -102,10 +101,10 @@ class DCASEDataModule(LightningDataModule):
         n_query: int = 10,
         n_way: int = 5,
         n_subsample: int = 1,
+        overlap: float = 0.5,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.root_dir_meta = root_dir_meta
         self.n_task_train = n_task_train
         self.n_task_val = n_task_val
         self.status = status
@@ -120,6 +119,7 @@ class DCASEDataModule(LightningDataModule):
         self.n_query = n_query
         self.n_way = n_way
         self.n_subsample = n_subsample
+        self.overlap = overlap
         self.setup()
 
     def setup(self, stage=None):
@@ -131,9 +131,12 @@ class DCASEDataModule(LightningDataModule):
             "frame_length": self.frame_length,
             "tensor_length": self.tensor_length,
             "set_type": self.set_type,
+            "overlap": self.overlap
         }
         if self.resample:
             my_hash_dict["tartget_fs"] = self.target_fs
+        if self.overlap != 0.5:
+            my_hash_dict["overlap"] = self.overlap
         hash_dir_name = hashlib.sha1(
             json.dumps(my_hash_dict, sort_keys=True).encode()
         ).hexdigest()
