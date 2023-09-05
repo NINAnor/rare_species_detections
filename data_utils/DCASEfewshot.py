@@ -544,22 +544,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--status",
-        help=" 'train' or 'validate' or 'test'",
-        default="train",
-        required=False,
-        type=str,
-    )
-
-    parser.add_argument(
-        "--set_type",
-        help=" 'Training_Set' or 'Validation_Set' or 'Evaluation_Set",
-        default="Training_Set",
-        required=False,
-        type=str,
-    )
-
-    parser.add_argument(
         "--overwrite",
         help="If there's an existing folder, should it be deleted?",
         default=True,
@@ -598,8 +582,8 @@ if __name__ == "__main__":
         cfg = yaml.load(f, Loader=FullLoader)
 
     prepare_training_val_data(
-        cli_args.status,
-        cli_args.set_type,
+        cfg["data"]["status"],
+        cfg["data"]["set_type"],
         cli_args.overwrite,
         cfg["data"]["tensor_length"],
         cfg["data"]["frame_length"],
