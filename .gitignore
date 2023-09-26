@@ -1,4 +1,7 @@
+BEATs_on_ESC50/lightning_logs/
+BEATs_on_ESC50/lightning_logs/*
 lightning_logs/*
+prototypicalbeats/lightning_logs/
 prototypicalbeats/lightning_logs/*
 data/
 *.pyc

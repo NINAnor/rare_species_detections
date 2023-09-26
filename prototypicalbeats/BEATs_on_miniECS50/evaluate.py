@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.manifold import TSNE
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
-from datamodules.miniECS50DataModule import miniECS50DataModule
+from BEATs_on_miniECS50.miniECS50DataModule import miniECS50DataModule
 
 def evaluate_on_one_task(
     support_images: torch.Tensor,

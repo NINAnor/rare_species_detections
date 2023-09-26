@@ -2,6 +2,10 @@
 
 [![DOI](https://zenodo.org/badge/597046464.svg)](https://zenodo.org/badge/latestdoi/597046464)
 
+:collision: **A PIPELINE FOR FINE-TUNING BEATs ON ESC50 DATASET IS PROVIDED [HERE](https://github.com/NINAnor/rare_species_detections/tree/main/BEATs_on_ESC50)**. The rest of the repository is on training a prototypical network using BEATs as feature extractor 
+
+:arrow_down:
+
 **Few-shot learning is a highly promising paradigm for sound event detection. It is also an extremely good fit to the needs of users in bioacoustics, in which increasingly large acoustic datasets commonly need to be labelled for events of an identified category** (e.g. species or call-type), even though this category might not be known in other datasets or have any yet-known label. While satisfying user needs, this will also benchmark few-shot learning for the wider domain of sound event detection (SED).
 
 <p align="center"><img src="images/VM.png" alt="figure" width="400" height="400"/></p>
