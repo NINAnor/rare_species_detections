@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "app"
+version = "0.1.0"
+description = ""
+authors = ["Benjamin"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+scikit-learn = "^1.0.2"
+librosa = "^0.9.1"
+SoundFile = "^0.10.3"
+matplotlib = "^3.5.2"
+ray = {extras = ["tune"], version = "^1.12.0"}
+mlflow = "^1.25.1"
+bayesian-optimization = "^1.2.0"
+audiomentations = "^0.25.1"
+torch = {url = "https://download.pytorch.org/whl/cu113/torch-1.11.0%2Bcu113-cp38-cp38-linux_x86_64.whl"}
+torchvision = {url = "https://download.pytorch.org/whl/cu113/torchvision-0.12.0%2Bcu113-cp38-cp38-linux_x86_64.whl"}
+torchaudio = {url = "https://download.pytorch.org/whl/cu113/torchaudio-0.11.0%2Bcu113-cp38-cp38-linux_x86_64.whl"}
+"fs.sshfs" = "^1.0.1"
+fs = "^2.4.16"
+seaborn = "^0.12.2"
+pytorch-lightning = "1.9.0"
+jsonargparse = {version = "4.17.0", extras = ["signatures"]}
+black = "^23.1.0"
+noisereduce = "^2.0.1"
+mir-eval = "0.6"
+numpy = "1.19.5"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
