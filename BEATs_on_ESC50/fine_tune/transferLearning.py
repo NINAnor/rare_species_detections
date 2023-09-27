@@ -67,6 +67,13 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # 2. Classifier
         self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.cfg.predictor_class)
 
+    def extract_features(self, x, padding_mask=None):
+        if padding_mask != None:
+            x, _ = self.beats.extract_features(x, padding_mask)
+        else:
+            x, _ = self.beats.extract_features(x)
+        return x
+
     def forward(self, x, padding_mask=None):
         """Forward pass. Return x"""
 

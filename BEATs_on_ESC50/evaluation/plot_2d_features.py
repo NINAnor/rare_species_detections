@@ -12,6 +12,8 @@ import numpy as np
 
 from sklearn.manifold import TSNE
 
+from fine_tune.trainer import BEATsTransferLearningModel
+
 from BEATs.Tokenizers import TokenizersConfig, Tokenizers
 from BEATs.BEATs import BEATs, BEATsConfig
 
@@ -56,14 +58,26 @@ def get_labels(afiles, labelfile):
     return labels
 
 
-def loadBEATs(model_path):
-    checkpoint = torch.load(model_path)
+def loadBEATs(ft_model):
+    print("The model path is:", ft_model)
+    checkpoint = torch.load("/model/BEATs_iter3_plus_AS2M.pt")
     cfg = BEATsConfig(checkpoint["cfg"])
     BEATs_model = BEATs(cfg)
-    BEATs_model.load_state_dict(checkpoint["model"])
+
+    # If no fine tuned model is specified, use the base BEATs
+    if ft_model == "BEATs":
+        print("Using the BEATs model to get the representations")
+        BEATs_model.load_state_dict(checkpoint["model"])
+
+    # Else use the fine tuned model
+    else:
+        print("Using the fine tuned model to get the representations")
+        ft = torch.load(ft_model)
+        ft["state_dict"] = {key.replace('beats.', ''): value for key, value in ft["state_dict"].items() if not key.endswith(('fc.weight', 'fc.bias'))}
+        BEATs_model.load_state_dict(ft["state_dict"])
+
     BEATs_model.eval()
     return BEATs_model
-
 
 def extractFeatures(BEATs_model, trs):
     for t in trs:
@@ -71,7 +85,6 @@ def extractFeatures(BEATs_model, trs):
         representation = BEATs_model.extract_features(t, padding_mask=padding_mask)[0]
         representation = representation[:, -1, :]
         yield representation.detach().numpy()
-
 
 def get_2d_features(features, perplexity):
     representation = np.concatenate(np.array(list(features)), axis=0)
@@ -92,7 +105,7 @@ def main(afiles, labels, model_path, fig_name, perplexity):
     trs = get_waveforms(afiles)
 
     print("[INFO] Loading the BEATs model")
-    BEATs_model = loadBEATs(model_path=model_path)
+    BEATs_model = loadBEATs(ft_model=model_path)
 
     print("[INFO] Getting the features")
     features = extractFeatures(BEATs_model, trs)
@@ -124,9 +137,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--model_path",
-        help="Num samples to process and visualize",
-        default="/model/BEATs_iter3_plus_AS2M.pt",
+        "--ft_model",
+        help="Path to the fine-tuned model",
+        default="BEATs",
         required=False,
         type=str,
     )
@@ -176,7 +189,7 @@ if __name__ == "__main__":
     main(
         list(filepath_labels["filepath"]),
         list(filepath_labels["category"]),
-        cli_args.model_path,
+        cli_args.ft_model,
         cli_args.fig_name,
         cli_args.perplexity,
     )

@@ -1,12 +1,14 @@
 #!/bin/bash
 
-MODEL_PATH="$1"
+MODEL_PATH="${1:-"BEATs"}"
 
 # Plot the results
-docker run -v $PWD:/app \ 
+docker run \
+    -v $PWD:/app \
+    --gpus all \
     beats_esc50 \
-    poetry run python plot_2d_features.py \
+    poetry run python evaluation/plot_2d_features.py \
         --num_samples 400 \
         --perplexity 5 \
         --num_categories 10 \
-        --model_path "$MODEL_PATH"
+        --ft_model "$MODEL_PATH"
