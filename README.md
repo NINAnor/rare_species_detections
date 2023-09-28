@@ -131,10 +131,10 @@ Overall_scores: {'precision': 0.2911279078300433, 'recall': 0.4938446186969832, 
 
 ## Acknowlegment and contact
 
-For bug reports please use the [issues] section (https://github.com/NINAnor/rare_species_detections/issues).
+For bug reports please use the [issues section](https://github.com/NINAnor/rare_species_detections/issues).
 
 For other inquiries please contact [Benjamin Cretois](mailto:benjamin.cretois@nina.no) or [Femke Gelderblom](mailto:femke.gelderblom@sintef.no) 
 
 ## Cite this work
 
-Technical report soon to be available.
+Gelderblom, F., Cretois, B., Johnsen, P., Remonato, F., & Reinen, T. A. (2023). Few-shot bioacoustic event detection using beats. Technical report, DCASE2023 Challenge.
