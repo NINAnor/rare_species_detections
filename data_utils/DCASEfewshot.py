@@ -560,19 +560,8 @@ if __name__ == "__main__":
     )
 
 
-    # check input
+    # get input
     cli_args = parser.parse_args()
-    assert (
-        cli_args.status == "validate"
-        or cli_args.status == "train"
-        or cli_args.status == "test"
-    )
-    if cli_args.status == "validate":
-        assert cli_args.set_type == "Validation_Set"
-    elif cli_args.status == "train":
-        assert cli_args.set_type == "Training_Set"
-    elif cli_args.status == "test":
-        assert cli_args.set_type == "Evaluation_Set"
 
     # Open the config file
     import yaml
@@ -580,6 +569,21 @@ if __name__ == "__main__":
 
     with open(cli_args.config) as f:
         cfg = yaml.load(f, Loader=FullLoader)
+
+    # Check values in config file
+    if not (cfg["data"]["status"]=="train" or cfg["data"]["status"]=="validate" or cfg["data"]["status"]=="test"):
+        raise Exception("ERROR: "+ str(cli_args.config) + ": Accepted values for 'status' are 'train', 'validate', or 'test'. Received '" + str(cfg["data"]["status"]) + "'.")
+    
+    # Select 'set_type' depending on chosen status
+    if cfg["data"]["status"]=="train":
+        cfg["data"]["set_type"] = "Training_Set"
+
+    elif cfg["data"]["status"]=="validate":
+        cfg["data"]["set_type"] = "Validation_Set"
+
+    else:
+        cfg["data"]["set_type"] = "Evaluation_Set"
+    
 
     prepare_training_val_data(
         cfg["data"]["status"],
