@@ -1,9 +1,10 @@
 #!/bin/bash
 
 BASE_FOLDER=$1
-CONFIG_PATH="./CONFIG.yaml"
+CONFIG_PATH="/app/CONFIG.yaml"
 
 docker run -v $BASE_FOLDER:/data \
+            -v $PWD:/app \
             --gpus all \
-            dcase \
-            poetry run prototypicalbeats/trainer.py fit --config $CONFIG_PATH
+            beats \
+            poetry run prototypicalbeats/trainer.py fit --config $CONFIG_PATH 
