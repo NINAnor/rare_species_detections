@@ -38,7 +38,7 @@ Once the necessary files have been dowloaded, you can either pull the Docker ima
 
 ```bash
 docker pull docker pull ghcr.io/ninanor/rare_species_detections:main
-docker tag docker pull ghcr.io/ninanor/rare_species_detections:main dcase
+docker tag docker pull ghcr.io/ninanor/rare_species_detections:main beats
 ```
 
 Or create the Docker image from the Dockerfile located in our repository:
@@ -46,7 +46,7 @@ Or create the Docker image from the Dockerfile located in our repository:
 ```bash
 git clone https://github.com/NINAnor/rare_species_detections.git
 cd rare_species_detections
-docker build -t dcase -f Dockerfile .
+docker build -t beats -f Dockerfile .
 ```
 
 ## Processing the data
@@ -89,7 +89,7 @@ Once the `eval_out.csv` has been created, it is possible to get the results for 
 docker run -v $CODE_DIR:/app \
             -v $DATA_DIR:/data \  
             --gpus all \
-            dcase \
+            beats \
             poetry run python evaluation/evaluation_metrics/evaluation.py \
             -pred_file /data/eval_out.csv \
             -ref_files_path /data/DCASE/Development_Set_annotations/Validation_Set \

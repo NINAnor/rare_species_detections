@@ -9,8 +9,9 @@ declare -A SETS=( ["Training_Set"]="train" ["Validation_Set"]="validate" ["Evalu
 for SET in "${!SETS[@]}"; do
     STATUS=${SETS[$SET]}
     docker run -v $DATA_DIR:/data \
+            -v $PWD:/app \
             --gpus all \
-            dcase \
+            beats \
             poetry run python /app/data_utils/DCASEfewshot.py \
                 --set_type $SET \
                 --status $STATUS

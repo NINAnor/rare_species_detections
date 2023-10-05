@@ -5,8 +5,9 @@ N_DETECTED_SUPPORTS=${2:-0}
 TOLERANCE=${3:-0}
 
 docker run -v $BASE_DIR:/data \
+            -v $PWD:/app \
             --gpus all \
-            dcase \
+            beats \
             poetry run python /app/evaluate/evaluateDCASE.py \
             --wav_save \
             --overwrite \
