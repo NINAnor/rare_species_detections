@@ -20,8 +20,7 @@ data:
   n_query: 10
   overlap: 0.5
   n_subsample: 1 # ask Femke what this stands for
-  status: validate # train or validate or evaluate
-  set_type: Validation_Set # Training_Set or Validation_Set or Evaluation_Set
+  status: train # train or validate or evaluate
 
 #################################
 # PARAMETERS FOR MODEL TRAINING #
@@ -37,7 +36,7 @@ trainer:
 model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
-  model_path: /data/lightning_logs/version_0/checkpoints/epoch=14-step=1500.ckpt # /data/BEATs/BEATs_iter3_plus_AS2M.pt # Or FOR INFERENCE: /data/lightning_logs/version_X/checkpoints/epoch=X-step=1500.ckpt
+  model_path: /data/BEATs/BEATs_iter3_plus_AS2M.pt # Or FOR INFERENCE: /data/lightning_logs/version_X/checkpoints/epoch=X-step=1500.ckpt
 
 
 ##################################################################
