@@ -37,7 +37,11 @@ model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
   model_path: /data/BEATs/BEATs_iter3_plus_AS2M.pt # Or FOR INFERENCE: /data/lightning_logs/version_X/checkpoints/epoch=X-step=1500.ckpt
-
+  specaugment_params: null
+  # specaugment_params:
+  #   application_ratio: 1.0
+  #   time_mask: 40  
+  #   freq_mask: 40 
 
 ##################################################################
 # PARAMETERS FOR RUNNING THE TRAINED MODEL ON THE EVALUATION SET #

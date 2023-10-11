@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
 import torchaudio.compliance.kaldi as ta_kaldi
-
+import torchaudio.transforms as ta_transforms
 from BEATs.backbone import (
     TransformerEncoder,
 )
@@ -154,6 +154,19 @@ class BEATs(nn.Module):
         fbank = torch.stack(fbanks, dim=0)
         fbank = (fbank - fbank_mean) / (2 * fbank_std)
         return fbank
+    
+    def specaugment(self, fbank, specaugment_params):
+        # FBG: Add spectral masking
+        if torch.rand(1) < specaugment_params["application_ratio"]:
+            masking = ta_transforms.TimeMasking(
+                time_mask_param=specaugment_params["time_mask"], 
+            )
+            fbank = masking(fbank)
+            masking = ta_transforms.FrequencyMasking(
+                freq_mask_param=specaugment_params["freq_mask"],
+            )
+            fbank = masking(fbank)
+        return fbank
 
     def extract_features(
         self,
@@ -169,6 +182,10 @@ class BEATs(nn.Module):
             padding_mask = self.forward_padding_mask(source, padding_mask)
 
         fbank = source.unsqueeze(1)
+
+        # FBG: add spectral masking 
+        if hasattr(self.cfg, "specaugment_params")  and not self.cfg.specaugment_params is None:
+            fbank = self.specaugment(fbank, self.cfg.specaugment_params)
         # end NOTE FBG
         features = self.patch_embedding(fbank)
         features = features.reshape(features.shape[0], features.shape[1], -1)

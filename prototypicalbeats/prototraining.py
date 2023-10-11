@@ -21,7 +21,8 @@ class ProtoBEATsModel(pl.LightningModule):
         lr_scheduler_gamma: float = 1e-1,
         num_workers: int = 6,
         model_path: str = "/data/BEATs/BEATs_iter3_plus_AS2M.pt",
-        distance: str = "euclidean",
+        distance: str = "euclidean", 
+        specaugment_params = None,   
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -35,13 +36,13 @@ class ProtoBEATsModel(pl.LightningModule):
         self.num_workers = num_workers
         self.milestones = milestones
         self.distance = distance
-
         # Initialise BEATs model
         self.checkpoint = torch.load(model_path)
         self.cfg = BEATsConfig(
             {
                 **self.checkpoint["cfg"],
                 "finetuned_model": False,
+                "specaugment_params": specaugment_params,
             }
         )
 
