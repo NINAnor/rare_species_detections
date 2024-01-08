@@ -11,9 +11,7 @@ for SET in "${!SETS[@]}"; do
     docker run -v $DATA_DIR:/data \
             -v $PWD:/app \
             --gpus all \
-            # -it \
             beats \
-            # bash \
-            poetry run python /app/data_utils/DCASEfewshot.py --config $CONFIG_PATH \
-
+            poetry run python /app/data_utils/DCASEfewshot.py --config $CONFIG_PATH 
+            
 done

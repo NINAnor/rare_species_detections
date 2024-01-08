@@ -2,13 +2,11 @@
 
 [![DOI](https://zenodo.org/badge/597046464.svg)](https://zenodo.org/badge/latestdoi/597046464)
 
-:collision: **A PIPELINE FOR FINE-TUNING BEATs ON ESC50 DATASET IS PROVIDED [HERE](https://github.com/NINAnor/rare_species_detections/tree/main/BEATs_on_ESC50)**. The rest of the repository is on training a prototypical network using BEATs as feature extractor 
-
-:arrow_down:
+:collision: **A PIPELINE FOR FINE-TUNING BEATs ON ESC50 DATASET IS PROVIDED [HERE](https://github.com/NINAnor/rare_species_detections/tree/main/BEATs_on_ESC50)**. The rest of the repository is on training a prototypical network using BEATs as feature extractor :collision:
 
 **Few-shot learning is a highly promising paradigm for sound event detection. It is also an extremely good fit to the needs of users in bioacoustics, in which increasingly large acoustic datasets commonly need to be labelled for events of an identified category** (e.g. species or call-type), even though this category might not be known in other datasets or have any yet-known label. While satisfying user needs, this will also benchmark few-shot learning for the wider domain of sound event detection (SED).
 
-<p align="center"><img src="images/VM.png" alt="figure" width="400" height="400"/></p>
+<p align="center"><img src="images/VM.png" alt="figure" width="300" height="300"/></p>
 
 **Few-shot learning describes tasks in which an algorithm must make predictions given only a few instances of each class, contrary to standard supervised learning paradigm.** The main objective is to find reliable algorithms that are capable of dealing with data sparsity, class imbalance and noisy/busy environments. Few-shot learning is usually studied using N-way-K-shot classification, where N denotes the number of classes and K the number of examples for each class.
 
@@ -32,16 +30,9 @@ We have made a small wrapper to download the DCASE data and the BEATs model. Onl
 ./dcase_setup.sh /BASE/FOLDER/
 ```
 
-The script should create a `DCASE` folder containing all the [DCASE data (i.e. Development and Evaluation set)](https://dcase.community/challenge2023/task-few-shot-bioacoustic-event-detection#validation-set) and a `BEATs` folder containing the [model weights](https://github.com/microsoft/unilm/tree/master/beats) in the specified base folder.
+The script should create a `DCASE` folder containing the [DCASE Development Set (i.e. Training and Validation set)](https://dcase.community/challenge2023/task-few-shot-bioacoustic-event-detection#validation-set) and a `BEATs` folder containing the [model weights](https://github.com/microsoft/unilm/tree/master/beats) in the specified base folder.
 
-Once the necessary files have been dowloaded, you can either pull the Docker image and rename it:
-
-```bash
-docker pull docker pull ghcr.io/ninanor/rare_species_detections:main
-docker tag docker pull ghcr.io/ninanor/rare_species_detections:main beats
-```
-
-Or create the Docker image from the Dockerfile located in our repository:
+Once the necessary files have been dowloaded create the Docker image from the Dockerfile located in our repository:
 
 ```bash
 git clone https://github.com/NINAnor/rare_species_detections.git
@@ -51,7 +42,7 @@ docker build -t beats -f Dockerfile .
 
 ## Processing the data
 
-First we need to process the DCASE data (i.e. denoising, resampling ... and saving the data as numpy array). For this we can use:
+Because of the duration of the preprocessing, we save the preprocessed files as `numpy arrays`. This way we can experiment with the pipeline without constantly pre-processing the data. To facilitate the pre-processing step use:
 
 ```bash
 ./preprocess_data.sh /BASE/FOLDER
@@ -59,9 +50,13 @@ First we need to process the DCASE data (i.e. denoising, resampling ... and savi
 
 The script will create a new folder `DCASEfewshot` containing three subfolders (`train`, `validate` and `evaluate`). Each of these folder contains the processed data in the form of `numpy arrays`.
 
+:black_nib: You can change the parameters for preprocessing the data in the [CONFIG.yaml file](/CONFIG.yaml)
+
+:black_nib: Note that to create the `numpy arrays` for `train`, `validate` and `evaluate` you need to change the [CONFIG.yaml file](/CONFIG.yaml) at each iteration.
+
 ## Train the model
 
-It is now possible to train the network using `prototypicalbeats/trainer.py`:
+Now that the data have been preprocessed into numpy arrays you can use them as a model input with `train_model.sh`:
 
 ```bash 
 ./train_model.sh /BASE/FOLDER
@@ -69,15 +64,19 @@ It is now possible to train the network using `prototypicalbeats/trainer.py`:
 
 The training script should create a `log` folder in the base folder (`lightning_logs/`) in which the model weights (`version_X/checkpoints/*.ckpt`) and the training configuration (`version_X/checkpoints/config.yaml`) are stored. 
 
+:black_nib: You can change the parameters for training the model in the [CONFIG.yaml file](/CONFIG.yaml)
+
 ## Using the model on the Validation / Evaluation dataset
 
-To run the prediction use the script `test_model`. Note that the file `CONFIG.yaml` file need to be updated. In particular you will need to change the `model_path`, `status` (either `test` or `validate`). and `set_type` (`Validation_Set` or `Evaluation_Set`)
+:black_nib: Update the `status` parameter of the [CONFIG.yaml file](/CONFIG.yaml) to the dataset you want to use the model on. Change `status` to either **validate** or **evaluate**.
+
+To run the prediction use the script `test_model`. 
 
 ```bash
 ./test_model.sh /BASE/FOLDER
 ```
 
-`test_model.sh` creates a result file `eval_out.csv` in the `BASE/FOLDER` containing all the detections made the model. 
+`test_model.sh` creates a result file `eval_out.csv` in the `BASE/FOLDER` containing all the detections made by the model. 
 
 Note that there are other advanced options. For instance, if `--wav_save` is specified, the script will also return a `.wav` file for all files containing additional channels: the ground truth labels, the predicted labels, the distance to the POS prototype and finally the p-values. The `.wav` file can be opened in [Audacity](https://www.audacityteam.org/) to be inspected more closely.
 
@@ -86,19 +85,10 @@ Note that there are other advanced options. For instance, if `--wav_save` is spe
 Once the `eval_out.csv` has been created, it is possible to get the results for our approach. Note that the metrics can only be computed for the `Validation_Set` as it contains all ground truth labels as opposed to the `Evaluation_Set` for which only the 5 first samples of the POS class are labelled.
 
 ```bash
-docker run -v $CODE_DIR:/app \
-            -v $DATA_DIR:/data \  
-            --gpus all \
-            beats \
-            poetry run python evaluation/evaluation_metrics/evaluation.py \
-            -pred_file /data/eval_out.csv \
-            -ref_files_path /data/DCASE/Development_Set_annotations/Validation_Set \
-            -team_name BEATs \
-            -dataset VAL \
-            -savepath /data/.
+./compute_metrics.sh /BASE/FOLDER
 ```
 
-The results we obtained:
+Here are the results we obtain using our pipeline described in our [Technical Report](https://dcase.community/documents/challenge2023/technical_reports/DCASE2023_Gelderblom_SINTEF_t5.pdf)
 
 ```
 Evaluation for: BEATs VAL
