@@ -261,7 +261,7 @@ def prepare_training_val_data(
         "overlap": overlap
     }
     if resample:
-        my_hash_dict["tartget_fs"] = target_fs
+        my_hash_dict["target_fs"] = target_fs
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()

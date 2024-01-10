@@ -135,7 +135,7 @@ class DCASEDataModule(LightningDataModule):
             "overlap": self.overlap
         }
         if self.resample:
-            my_hash_dict["tartget_fs"] = self.target_fs
+            my_hash_dict["target_fs"] = self.target_fs
         hash_dir_name = hashlib.sha1(
             json.dumps(my_hash_dict, sort_keys=True).encode()
         ).hexdigest()
