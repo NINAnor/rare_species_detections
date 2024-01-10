@@ -10,17 +10,19 @@
 data:
   n_task_train: 100
   n_task_val: 100
-  target_fs: 16000
-  resample: true
-  denoise: true
-  normalize: true
-  frame_length: 25.0
-  tensor_length: 128
+  target_fs: 22050 # used in preprocessing
+  resample: true # used in preprocessing
+  denoise: true # used in preprocessing
+  normalize: true # used in preprocessing
+  frame_length: 25.0 # used in preprocessing
+  tensor_length: 128 # used in preprocessing
   n_shot: 5
   n_query: 10
-  overlap: 0.5
-  n_subsample: 1 # ask Femke what this stands for
-  status: train # train or validate or evaluate
+  overlap: 0.5 # used in preprocessing
+  n_subsample: 1 
+  status: validate # used in preprocessing, train or validate or evaluate
+
+
 
 #################################
 # PARAMETERS FOR MODEL TRAINING #
@@ -28,7 +30,7 @@ data:
 # Be sure the parameters match the ones in data processing
 
 trainer:
-  max_epochs: 1
+  max_epochs: 25
   default_root_dir: /data
   accelerator: gpu
   gpus: 1
