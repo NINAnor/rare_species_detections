@@ -29,7 +29,7 @@ mkdir -p $TARGET_FOLDER
 ############################
 # Download the BEATs model #
 ############################
-MODEL_FOLDER=$BASE_FOLDER/BEATs
+MODEL_FOLDER=$BASE_FOLDER/model/BEATs
 mkdir -p $MODEL_FOLDER
 wget -O "$MODEL_FOLDER/BEATs_iter3_plus_AS2M.pt" "https://valle.blob.core.windows.net/share/BEATs/BEATs_iter3_plus_AS2M.pt?sv=2020-08-04&st=2023-03-01T07%3A51%3A05Z&se=2033-03-02T07%3A51%3A00Z&sr=c&sp=rl&sig=QJXmSJG9DbMKf48UDIU1MfzIro8HQOf3sqlNXiflY1I%3D" 
 
@@ -47,18 +47,21 @@ download_and_unzip "https://zenodo.org/record/6482837/files/Development_Set_anno
 # Acoustic data
 download_and_unzip "https://zenodo.org/record/6482837/files/Development_Set.zip?download=1" "$TARGET_FOLDER"
 
-###############################
-# Download the evaluation set #
-###############################
-mkdir -p "$TARGET_FOLDER/Development_Set/Evaluation_Set"
+#####################################################################
+# Download the evaluation set - OUTDATED AS THIS WAS FOR DCASE 2023 #
+#####################################################################
 
-download_and_unzip "https://zenodo.org/record/7879692/files/Annotations_only.zip?download=1" "$TARGET_FOLDER"
-mv "$TARGET_FOLDER/Annotations_only" "$TARGET_FOLDER/Development_Set_annotations/Evaluation_Set"
+
+
+#mkdir -p "$TARGET_FOLDER/Development_Set/Evaluation_Set"
+
+#download_and_unzip "https://zenodo.org/record/7879692/files/Annotations_only.zip?download=1" "$TARGET_FOLDER"
+#mv "$TARGET_FOLDER/Annotations_only" "$TARGET_FOLDER/Development_Set_annotations/Evaluation_Set"
 
 # Acoustic data
-for i in {1..3}
-do
-    download_and_unzip "https://zenodo.org/record/7879692/files/eval_$i.zip?download=1" "$TARGET_FOLDER/Development_Set/Evaluation_Set"
-done
+#for i in {1..3}
+#do
+#    download_and_unzip "https://zenodo.org/record/7879692/files/eval_$i.zip?download=1" "$TARGET_FOLDER/Development_Set/Evaluation_Set"
+#done
 
 

@@ -72,7 +72,12 @@ def train_model(
 
     if pretrained_model:
         # Load the pretrained model
-        pretrained_model = ProtoBEATsModel.load_from_checkpoint(pretrained_model)
+        try:
+            pretrained_model = ProtoBEATsModel.load_from_checkpoint(pretrained_model)
+        except KeyError:
+            print("Failed to load the pretrained model. Please check the checkpoint file.")
+            return None
+
 
     # train the model
     trainer.fit(model, datamodule=datamodule_class)
@@ -568,6 +573,16 @@ if __name__ == "__main__":
     version_path = os.path.dirname(os.path.dirname(cfg["model"]["model_path"]))
     training_config_path = os.path.join(version_path, "config.yaml")
     version_name = os.path.basename(version_path)
+
+    # Select 'set_type' depending on chosen status
+    if cfg["data"]["status"]=="train":
+        cfg["data"]["set_type"] = "Training_Set"
+
+    elif cfg["data"]["status"]=="validate":
+        cfg["data"]["set_type"] = "Validation_Set"
+
+    else:
+        cfg["data"]["set_type"] = "Evaluation_Set"
 
     # Get correct paths to dataset
     my_hash_dict = {
