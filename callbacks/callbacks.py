@@ -11,7 +11,7 @@ class MilestonesFinetuning(BaseFinetuning):
         self.milestones = milestones
 
     def freeze_before_training(self, pl_module: pl.LightningModule):
-        self.freeze(modules=pl_module.beats)
+        self.freeze(modules=pl_module.model)
 
     def finetune_function(
         self,
@@ -23,5 +23,5 @@ class MilestonesFinetuning(BaseFinetuning):
         if epoch == self.milestones:
             # unfreeze BEATs
             self.unfreeze_and_add_param_group(
-                modules=pl_module.beats, optimizer=optimizer
+                modules=pl_module.model, optimizer=optimizer
             )
