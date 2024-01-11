@@ -592,7 +592,8 @@ if __name__ == "__main__":
         "frame_length": cfg["data"]["frame_length"],
         "tensor_length": cfg["data"]["tensor_length"],
         "set_type": cfg["data"]["set_type"],
-        "overlap": cfg["data"]["overlap"]
+        "overlap": cfg["data"]["overlap"],
+        "num_mel_bins": cfg["data"]["num_mel_bins"]
     }
     if cfg["data"]["resample"]:
         my_hash_dict["target_fs"] = cfg["data"]["target_fs"]

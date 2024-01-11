@@ -261,7 +261,8 @@ def prepare_training_val_data(
         "frame_length": frame_length,
         "tensor_length": tensor_length,
         "set_type": set_type,
-        "overlap": overlap
+        "overlap": overlap,
+        "num_mel_bins": num_mel_bins
     }
     if resample:
         my_hash_dict["target_fs"] = target_fs
