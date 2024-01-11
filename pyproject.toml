@@ -26,6 +26,7 @@ black = "^23.1.0"
 noisereduce = "^2.0.1"
 mir-eval = "0.6"
 numpy = "1.19.5"
+torchlibrosa = "^0.1.0"
 
 [tool.poetry.dev-dependencies]
 
