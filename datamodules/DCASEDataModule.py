@@ -103,7 +103,8 @@ class DCASEDataModule(LightningDataModule):
         n_subsample: int = 1,
         overlap: float = 0.5,
         num_mel_bins: int = 128,
-        max_segment_length: float = 1.0**kwargs,
+        max_segment_length: float = 1.0,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.n_task_train = n_task_train
