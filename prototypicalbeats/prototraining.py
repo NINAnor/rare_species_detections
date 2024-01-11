@@ -22,8 +22,8 @@ class ProtoBEATsModel(pl.LightningModule):
         lr: float = 1e-5,
         lr_scheduler_gamma: float = 1e-1,
         num_workers: int = 6,
-        model_type: str = "baseline", # or baseline
-        model_path: str = "/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
+        model_type: str = "baseline", 
+        model_path: str = None,
         distance: str = "euclidean", 
         specaugment_params = None,   
         **kwargs,
@@ -63,17 +63,27 @@ class ProtoBEATsModel(pl.LightningModule):
         self.valid_acc = Accuracy(task="multiclass", num_classes=self.n_way)
 
     def _build_model(self):
+
         if self.model_type == "baseline":
             print("[MODEL] Loading the baseline model")
             self.model = ProtoNet()
+
         if self.model_type == "beats":
             print("[MODEL] Loading the BEATs model")
             self.model = BEATs(self.cfg)
             self.model.load_state_dict(self.checkpoint["model"])
+
         if self.model_type == "pann":
             print("[MODEL] Loading the PANN model")
+            layers_to_remove = ["spectrogram_extractor.stft.conv_real.weight", "spectrogram_extractor.stft.conv_imag.weight", "logmel_extractor.melW",
+                                "fc_audioset.weight", "fc_audioset.bias"]
+            
+            for key in layers_to_remove:
+                del self.checkpoint["model"][key]
             self.model = Cnn14()
             self.model.load_state_dict(self.checkpoint["model"])
+        else:
+            print("[ERROR] the model specified is not included in the pipeline. Please use 'baseline', 'pann' or 'beats'")
 
 
     def euclidean_distance(self, x1, x2):
@@ -124,12 +134,10 @@ class ProtoBEATsModel(pl.LightningModule):
         if self.model_type == "beats":
             z_support, _ = self.get_embeddings(support_images, padding_mask)
             z_query, _ = self.get_embeddings(query_images, padding_mask)
-            print(z_support.shape)
 
         else: 
             z_support = self.get_embeddings(support_images, padding_mask)
             z_query = self.get_embeddings(query_images, padding_mask)
-            print(z_support.shape)
 
         # Infer the number of classes from the labels of the support set
         n_way = len(torch.unique(support_labels))

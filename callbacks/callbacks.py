@@ -6,7 +6,7 @@ from pytorch_lightning.callbacks.finetuning import BaseFinetuning
 
 # See https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/domain_templates/computer_vision_fine_tuning.py
 class MilestonesFinetuning(BaseFinetuning):
-    def __init__(self, milestones: int = 1):
+    def __init__(self, milestones: int = 100):
         super().__init__()
         self.milestones = milestones
 

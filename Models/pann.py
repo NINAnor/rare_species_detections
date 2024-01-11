@@ -139,8 +139,8 @@ class AttBlock(nn.Module):
 
 
 class Cnn14(nn.Module):
-    #def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin, 
-    #    fmax, classes_num):
+    #def __init__(self, sample_rate=1, window_size=1, hop_size=1, mel_bins=1, fmin=1, 
+    #    fmax=1, classes_num=1):
     def __init__(self, classes_num=1):    
         super(Cnn14, self).__init__()
 
@@ -152,18 +152,22 @@ class Cnn14(nn.Module):
         #top_db = None
 
         # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size, 
-            win_length=window_size, window=window, center=center, pad_mode=pad_mode, 
-            freeze_parameters=True)
+        #self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size, 
+        #    win_length=window_size, window=window, center=center, pad_mode=pad_mode, 
+        #    freeze_parameters=True)
 
         # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size, 
-            n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db, 
-            freeze_parameters=True)
+        #self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size, 
+        #    n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db, 
+        #    freeze_parameters=True)
 
         # Spec augmenter
-        self.spec_augmenter = SpecAugmentation(time_drop_width=64, time_stripes_num=2, 
-            freq_drop_width=8, freq_stripes_num=2)
+        #self.spec_augmenter = SpecAugmentation(time_drop_width=64, time_stripes_num=2, 
+        #    freq_drop_width=8, freq_stripes_num=2)
+        
+        # OUR INPUT IS A SPECTROGRAM 128x128 SO HERE WE MAXPOOL TO CONFORM TO 
+        # THE INPUT OF PANN 
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2) # --> (batch_size, n_channels, H=128, W=128) --> (batch_size, n_channels, H=64, W=64)
 
         self.bn0 = nn.BatchNorm2d(64)
 
@@ -174,15 +178,15 @@ class Cnn14(nn.Module):
         self.conv_block5 = ConvBlock(in_channels=512, out_channels=1024)
         self.conv_block6 = ConvBlock(in_channels=1024, out_channels=2048)
 
-        self.fc1 = nn.Linear(2048, 2048, bias=True)
-        self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
+        self.fc1 = nn.Linear(2048, 2048, bias=True) # We get an embedding in a 2048 dimension space
+        #self.fc_audioset = nn.Linear(2048, classes_num, bias=True)
         
         self.init_weight()
 
     def init_weight(self):
         init_bn(self.bn0)
         init_layer(self.fc1)
-        init_layer(self.fc_audioset)
+        #init_layer(self.fc_audioset)
  
     def forward(self, input, mixup_lambda=None):
         """
@@ -190,7 +194,7 @@ class Cnn14(nn.Module):
         #x = self.spectrogram_extractor(input)   # (batch_size, 1, time_steps, freq_bins) --> 1 is the number of channels
         #x = self.logmel_extractor(x)    # (batch_size, 1, time_steps, mel_bins)
         x = input.unsqueeze(1)
-        print(x.shape)
+        x = self.pool(x)
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)

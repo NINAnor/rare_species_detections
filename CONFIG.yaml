@@ -28,8 +28,8 @@ data:
 # Be sure the parameters match the ones in data processing
 
 trainer:
-  max_epochs: 1 # number of epochs to train the model on
-  default_root_dir: /data
+  max_epochs: 100 # number of epochs to train the model on
+  default_root_dir: /data/lightning_logs/pann # folder that contains all the logs
   accelerator: gpu
   gpus: 1
 
