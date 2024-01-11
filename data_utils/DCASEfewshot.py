@@ -33,7 +33,6 @@ import noisereduce as nr
 PLOT = False
 PLOT_TOO_SHORT_SAMPLES = False
 PLOT_SUPPORT = False
-MAX_SEGMENT_LENGTH = 1.0
 
 
 def normalize_mono(samples):
@@ -95,6 +94,7 @@ def prepare_training_val_data(
     target_fs=16000,
     overlap=0.5,
     num_mel_bins=128,
+    max_segment_length=1.0,
 ):
     """Prepare the Training_Set
 
@@ -120,7 +120,7 @@ def prepare_training_val_data(
                 continue
             # obtain a segment with large margins around event
             extra_time = 3
-            segment_length_here = min(min_segment_lengths[label], MAX_SEGMENT_LENGTH)
+            segment_length_here = min(min_segment_lengths[label], max_segment_length)
             frame_shift = np.round(segment_length_here / tensor_length * 1000)
             frame_shift = 1 if frame_shift < 1 else frame_shift
             start_waveform = int((df["Starttime"][ind] - extra_time) * fs)
@@ -152,7 +152,7 @@ def prepare_training_val_data(
                 sample_frequency=target_fs,
                 frame_length=frame_length,
                 frame_shift=frame_shift,
-                num_mel_bins=num_mel_bins
+                num_mel_bins=num_mel_bins,
             )
             data = fbank.data[0].T
             # select the relevant segment (without the large margins)
@@ -262,7 +262,8 @@ def prepare_training_val_data(
         "tensor_length": tensor_length,
         "set_type": set_type,
         "overlap": overlap,
-        "num_mel_bins": num_mel_bins
+        "num_mel_bins": num_mel_bins,
+        "max_segment_length": max_segment_length,
     }
     if resample:
         my_hash_dict["target_fs"] = target_fs
@@ -282,7 +283,7 @@ def prepare_training_val_data(
         os.makedirs(os.path.join(target_path, "plots"))
 
     # Save my_hash_dict as a metadata file
-    with open(os.path.join(target_path, 'metadata.json'), 'w') as f:
+    with open(os.path.join(target_path, "metadata.json"), "w") as f:
         json.dump(my_hash_dict, f)
 
     print("=== Processing data ===")
@@ -313,9 +314,9 @@ def prepare_training_val_data(
         audio_path = file.replace("csv", "wav")
         print("Processing file name {}".format(audio_path))
         y, fs = librosa.load(audio_path, sr=None, mono=True)
-        if not resample or my_hash_dict["target_fs"]> fs:
+        if not resample or my_hash_dict["target_fs"] > fs:
             target_fs = fs
-        else: 
+        else:
             target_fs = my_hash_dict["target_fs"]
         df = df[(df == "POS").any(axis=1)]
         df = df.reset_index()
@@ -372,7 +373,7 @@ def prepare_training_val_data(
             # CREATE QUERY SETS
             # obtain file specific frame_shift and save to meta.csv
 
-            segment_length_here = min(min_segment_lengths["POS"], MAX_SEGMENT_LENGTH)
+            segment_length_here = min(min_segment_lengths["POS"], max_segment_length)
             frame_shift = np.round(segment_length_here / tensor_length * 1000)
             frame_shift = 1 if frame_shift < 1 else frame_shift
             print(file_name)
@@ -566,7 +567,6 @@ if __name__ == "__main__":
         type=str,
     )
 
-
     # get input
     cli_args = parser.parse_args()
 
@@ -578,19 +578,28 @@ if __name__ == "__main__":
         cfg = yaml.load(f, Loader=FullLoader)
 
     # Check values in config file
-    if not (cfg["data"]["status"]=="train" or cfg["data"]["status"]=="validate" or cfg["data"]["status"]=="test"):
-        raise Exception("ERROR: "+ str(cli_args.config) + ": Accepted values for 'status' are 'train', 'validate', or 'test'. Received '" + str(cfg["data"]["status"]) + "'.")
-    
+    if not (
+        cfg["data"]["status"] == "train"
+        or cfg["data"]["status"] == "validate"
+        or cfg["data"]["status"] == "test"
+    ):
+        raise Exception(
+            "ERROR: "
+            + str(cli_args.config)
+            + ": Accepted values for 'status' are 'train', 'validate', or 'test'. Received '"
+            + str(cfg["data"]["status"])
+            + "'."
+        )
+
     # Select 'set_type' depending on chosen status
-    if cfg["data"]["status"]=="train":
+    if cfg["data"]["status"] == "train":
         cfg["data"]["set_type"] = "Training_Set"
 
-    elif cfg["data"]["status"]=="validate":
+    elif cfg["data"]["status"] == "validate":
         cfg["data"]["set_type"] = "Validation_Set"
 
     else:
         cfg["data"]["set_type"] = "Evaluation_Set"
-    
 
     prepare_training_val_data(
         cfg["data"]["status"],
@@ -604,4 +613,5 @@ if __name__ == "__main__":
         cfg["data"]["target_fs"],
         cfg["data"]["overlap"],
         cfg["data"]["num_mel_bins"],
+        cfg["data"]["max_segment_length"],
     )

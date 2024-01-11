@@ -21,6 +21,7 @@ data:
   overlap: 0.5 # used in preprocessing
   n_subsample: 1 
   num_mel_bins: 128 # used in preprocessing
+  max_segment_length: 1.0 # used in preprocessing
   status: train # used in preprocessing, train or validate or evaluate
   
 
