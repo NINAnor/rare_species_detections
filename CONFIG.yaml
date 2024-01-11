@@ -20,8 +20,9 @@ data:
   n_query: 10
   overlap: 0.5 # used in preprocessing
   n_subsample: 1 
-  status: validate # used in preprocessing, train or validate or evaluate
-
+  num_mel_bins: 128 # used in preprocessing
+  status: train # used in preprocessing, train or validate or evaluate
+  
 
 
 #################################

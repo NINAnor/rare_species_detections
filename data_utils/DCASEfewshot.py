@@ -64,13 +64,14 @@ def preprocess(
     frame_length: float = 25.0,
     frame_shift: float = 10.0,
     subtract_mean: bool = True,
+    num_mel_bins: int = 128,
 ) -> torch.Tensor:
     fbanks = []
     for waveform in source:
         waveform = waveform.unsqueeze(0) * 2**15
         fbank = ta_kaldi.fbank(
             waveform,
-            num_mel_bins=128,
+            num_mel_bins=num_mel_bins,
             sample_frequency=sample_frequency,
             frame_length=frame_length,
             frame_shift=frame_shift,
@@ -93,6 +94,7 @@ def prepare_training_val_data(
     resample=False,
     target_fs=16000,
     overlap=0.5,
+    num_mel_bins=128,
 ):
     """Prepare the Training_Set
 
@@ -150,6 +152,7 @@ def prepare_training_val_data(
                 sample_frequency=target_fs,
                 frame_length=frame_length,
                 frame_shift=frame_shift,
+                num_mel_bins=num_mel_bins
             )
             data = fbank.data[0].T
             # select the relevant segment (without the large margins)
@@ -387,6 +390,7 @@ def prepare_training_val_data(
                 sample_frequency=target_fs,
                 frame_length=frame_length,
                 frame_shift=frame_shift,
+                num_mel_bins=num_mel_bins,
             )
             data = fbank.data[0].T
             # obtain windows and their labels
@@ -548,7 +552,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--overwrite",
         help="If there's an existing folder, should it be deleted?",
-        default=True,
+        default=False,
         required=False,
         action="store_true",
     )
@@ -598,4 +602,5 @@ if __name__ == "__main__":
         cfg["data"]["resample"],
         cfg["data"]["target_fs"],
         cfg["data"]["overlap"],
+        cfg["data"]["num_mel_bins"],
     )
