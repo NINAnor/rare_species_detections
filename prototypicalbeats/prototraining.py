@@ -12,6 +12,7 @@ from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 from BEATs.BEATs import BEATs, BEATsConfig
 from Models.baseline import ProtoNet
+from Models.pann import Cnn14
 
 class ProtoBEATsModel(pl.LightningModule):
     def __init__(
@@ -22,7 +23,7 @@ class ProtoBEATsModel(pl.LightningModule):
         lr_scheduler_gamma: float = 1e-1,
         num_workers: int = 6,
         model_type: str = "baseline", # or baseline
-        model_path: str = "/data/BEATs/BEATs_iter3_plus_AS2M.pt",
+        model_path: str = "/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
         distance: str = "euclidean", 
         specaugment_params = None,   
         **kwargs,
@@ -50,6 +51,10 @@ class ProtoBEATsModel(pl.LightningModule):
                     "specaugment_params": specaugment_params,
                 }
             )
+        
+        # If we are using the PANN model:
+        if self.model_type == "pann":
+            self.checkpoint = torch.load(model_path)
 
         self._build_model()
         self.save_hyperparameters()
@@ -65,6 +70,11 @@ class ProtoBEATsModel(pl.LightningModule):
             print("[MODEL] Loading the BEATs model")
             self.model = BEATs(self.cfg)
             self.model.load_state_dict(self.checkpoint["model"])
+        if self.model_type == "pann":
+            print("[MODEL] Loading the PANN model")
+            self.model = Cnn14()
+            self.model.load_state_dict(self.checkpoint["model"])
+
 
     def euclidean_distance(self, x1, x2):
         return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))

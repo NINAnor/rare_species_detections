@@ -24,6 +24,7 @@ class ProtoNet(nn.Module):
     def forward(self,x):
         (num_samples,seq_len,mel_bins) = x.shape
         x = x.view(-1,1,seq_len,mel_bins)
+        print(x.shape)
         x = self.encoder(x)
         x = nn.MaxPool2d(2)(x)
         
