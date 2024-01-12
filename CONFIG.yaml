@@ -20,7 +20,7 @@ data:
   n_query: 10
   overlap: 0.5
   n_subsample: 1 # 
-  status: train # train or validate or evaluate
+  status: validate # train or validate or evaluate
 
 #################################
 # PARAMETERS FOR MODEL TRAINING #
@@ -28,7 +28,7 @@ data:
 # Be sure the parameters match the ones in data processing
 
 trainer:
-  max_epochs: 100 # number of epochs to train the model on
+  max_epochs: 5 # number of epochs to train the model on
   default_root_dir: /data/lightning_logs/pann # folder that contains all the logs
   accelerator: gpu
   gpus: 1
@@ -36,8 +36,9 @@ trainer:
 model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
-  model_type: pann # beats, pann or baseline
-  model_path: /data/model/PANN/Cnn14_mAP=0.431.pth # /data/model/BEATs/BEATs_iter3_plus_AS2M.pt #   # Or FOR INFERENCE: /data/lightning_logs/version_X/checkpoints/epoch=X-step=1500.ckpt
+  model_type: beats # beats, pann or baseline
+  state: None # train or validate or None if using beats or baseline // since we remove from layers from the original PANN we can't load the ckpts normally (see _build_model in prototraining.py)
+  model_path: /data/lightning_logs/version_96/checkpoints/epoch=85-step=8600.ckpt #/data/lightning_logs/pann/lightning_logs/version_1/checkpoints/epoch=99-step=10000.ckpt #/data/lightning_logs/pann/lightning_logs/version_1/checkpoints/epoch=99-step=10000.ckpt #/data/model/PANN/Cnn14_mAP=0.431.pth # /data/model/BEATs/BEATs_iter3_plus_AS2M.pt #   # Or FOR INFERENCE: /data/lightning_logs/version_X/checkpoints/epoch=X-step=1500.ckpt
   specaugment_params: null
   # specaugment_params:
   #   application_ratio: 1.0
