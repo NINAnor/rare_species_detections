@@ -67,17 +67,7 @@ def train_model(
         # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
 
-    # create the model object
     model = ProtoBEATsModel(model_type=model_type, model_path=pretrained_model, state=state)
-
-    if pretrained_model:
-        # Load the pretrained model
-        try:
-            pretrained_model = ProtoBEATsModel.load_from_checkpoint(pretrained_model)
-        except KeyError:
-            print("Failed to load the pretrained model. Please check the checkpoint file.")
-            return None
-
 
     # train the model
     trainer.fit(model, datamodule=datamodule_class)
