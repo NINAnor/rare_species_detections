@@ -107,6 +107,7 @@ class DCASEDataModule(LightningDataModule):
         n_query: int = 10,
         n_way: int = 2,
         n_subsample: int = 1,
+        num_mel_bins: int = 128,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -118,6 +119,7 @@ class DCASEDataModule(LightningDataModule):
         self.n_query = n_query
         self.n_way = n_way
         self.n_subsample = n_subsample
+        self.num_mel_bins = num_mel_bins
         self.setup()
 
     def setup(self, stage=None):

@@ -68,7 +68,19 @@ def train_model(
         # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
 
-    model = ProtoBEATsModel(model_type=model_type, model_path=pretrained_model, state=state, beats_path=beats_path)
+
+    # create the model object
+    model = model_class(milestones=milestones)
+
+    if pretrained_model:
+        # Load the pretrained model
+        try:
+            pretrained_model = ProtoBEATsModel.load_from_checkpoint(pretrained_model)
+        except KeyError:
+            print(
+                "Failed to load the pretrained model. Please check the checkpoint file."
+            )
+            return None
 
     # train the model
     trainer.fit(model, datamodule=datamodule_class)
@@ -303,13 +315,12 @@ def main(
 
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
-    model = training(cfg["model"]["model_type"], 
-                     cfg["model"]["model_path"], 
-                     cfg["model"]["state"], 
-                     custom_dcasedatamodule, 
-                     max_epoch=cfg["trainer"]["max_epochs"],
-                     beats_path=cfg["model"]["beats_path"])
-    model_type = cfg["model"]["model_type"]
+    model = training(
+        cfg["model"]["model_path"],
+        custom_dcasedatamodule,
+        max_epoch=cfg["trainer"]["max_epochs"],
+    )
+
 
     # Get the prototypes coordinates
     a = custom_dcasedatamodule.test_dataloader()
@@ -378,12 +389,9 @@ def main(
         # Train the model with the support data
         print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
 
-        model = training(cfg["model"]["model_type"], 
-                         cfg["model"]["model_path"], 
-                         cfg["model"]["state"], 
-                         custom_dcasedatamodule, 
-                         max_epoch=1,
-                         beats_path=cfg["model"]["beats_path"])
+        model = training(
+            cfg["model"]["model_path"], custom_dcasedatamodule, max_epoch=1
+        )
 
         # Get the prototypes coordinates
         a = custom_dcasedatamodule.test_dataloader()
@@ -444,7 +452,9 @@ def main(
     )
 
     result_POS_merged = merge_preds(
-        df=result_POS, tolerence=cfg["tolerance"], tensor_length=cfg["data"]["tensor_length"]
+        df=result_POS,
+        tolerence=cfg["tolerance"],
+        tensor_length=cfg["data"]["tensor_length"],
     )
 
     # Add the filename
@@ -498,19 +508,43 @@ def write_wav(
     # Expand the dimensions
     gt_labels = np.repeat(
         np.squeeze(gt_labels, axis=1).T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
     pred_labels = np.repeat(
         pred_labels.T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
     distances_to_pos = np.repeat(
         distances_to_pos.T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
     z_scores_pos = np.repeat(
         z_scores_pos.T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
 
     # pad with zeros
@@ -595,10 +629,10 @@ if __name__ == "__main__":
     version_name = os.path.basename(version_path)
 
     # Select 'set_type' depending on chosen status
-    if cfg["data"]["status"]=="train":
+    if cfg["data"]["status"] == "train":
         cfg["data"]["set_type"] = "Training_Set"
 
-    elif cfg["data"]["status"]=="validate":
+    elif cfg["data"]["status"] == "validate":
         cfg["data"]["set_type"] = "Validation_Set"
 
     else:
@@ -612,10 +646,12 @@ if __name__ == "__main__":
         "frame_length": cfg["data"]["frame_length"],
         "tensor_length": cfg["data"]["tensor_length"],
         "set_type": cfg["data"]["set_type"],
-        "overlap": cfg["data"]["overlap"]
+        "overlap": cfg["data"]["overlap"],
+        "num_mel_bins": cfg["data"]["num_mel_bins"],
+        "max_segment_length": cfg["data"]["max_segment_length"],
     }
     if cfg["data"]["resample"]:
-        my_hash_dict["tartget_fs"] = cfg["data"]["target_fs"]
+        my_hash_dict["target_fs"] = cfg["data"]["target_fs"]
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
@@ -636,11 +672,11 @@ if __name__ == "__main__":
         "support_labels_*.npy",
     )
     query_data_path = os.path.join(
-        "/data/DCASEfewshot", 
-        cfg["data"]["status"], 
-        hash_dir_name, 
-        "audio", 
-        "query_data_*.npz"
+        "/data/DCASEfewshot",
+        cfg["data"]["status"],
+        hash_dir_name,
+        "audio",
+        "query_data_*.npz",
     )
     query_labels_path = os.path.join(
         "/data/DCASEfewshot",
@@ -650,11 +686,7 @@ if __name__ == "__main__":
         "query_labels_*.npy",
     )
     meta_df_path = os.path.join(
-        "/data/DCASEfewshot", 
-        cfg["data"]["status"], 
-        hash_dir_name, 
-        "audio", 
-        "meta.csv"
+        "/data/DCASEfewshot", cfg["data"]["status"], hash_dir_name, "audio", "meta.csv"
     )
 
     # set target path

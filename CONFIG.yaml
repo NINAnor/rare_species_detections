@@ -10,17 +10,20 @@
 data:
   n_task_train: 100
   n_task_val: 100
-  target_fs: 16000
-  resample: true
-  denoise: true # should the data be denoised using spectral gating https://github.com/timsainb/noisereduce
-  normalize: true
-  frame_length: 25.0
-  tensor_length: 128 # used to extract a random segment of length $tensor_length out of the mel-spec of a positive sample
+  target_fs: 22050 # used in preprocessing
+  resample: true # used in preprocessing
+  denoise: true # used in preprocessing
+  normalize: true # used in preprocessing
+  frame_length: 25.0 # used in preprocessing
+  tensor_length: 128 # used in preprocessing
   n_shot: 5
   n_query: 10
-  overlap: 0.5
-  n_subsample: 1 # 
-  status: validate # train or validate or evaluate
+  overlap: 0.5 # used in preprocessing
+  n_subsample: 1 
+  num_mel_bins: 128 # used in preprocessing
+  max_segment_length: 1.0 # used in preprocessing
+  status: train # used in preprocessing, train or validate or evaluate
+  
 
 #################################
 # PARAMETERS FOR MODEL TRAINING #
@@ -28,8 +31,8 @@ data:
 # Be sure the parameters match the ones in data processing
 
 trainer:
-  max_epochs: 5 # number of epochs to train the model on
-  default_root_dir: /data/lightning_logs/pann # folder that contains all the logs
+  max_epochs: 25
+  default_root_dir: /data
   accelerator: gpu
   gpus: 1
 
