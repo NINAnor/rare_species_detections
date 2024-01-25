@@ -27,6 +27,7 @@ class ProtoBEATsModel(pl.LightningModule):
         distance: str = "euclidean", 
         specaugment_params = None,   
         state: str = None,
+        beats_path: str = "/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -43,6 +44,7 @@ class ProtoBEATsModel(pl.LightningModule):
         self.model_type = model_type
         self.state = state
         self.specaugment_params = specaugment_params 
+        self.beats_path = beats_path
 
         if model_path: 
             self.checkpoint = torch.load(model_path)
@@ -59,18 +61,26 @@ class ProtoBEATsModel(pl.LightningModule):
             print("[MODEL] Loading the baseline model")
             self.model = ProtoNet()
 
+            if self.state == "evaluate":
+                self.model.load_state_dict(self.checkpoint["state_dict"])
+
         if self.model_type == "beats":
             print("[MODEL] Loading the BEATs model")
-
+            self.beats = torch.load("/data/model/BEATs/BEATs_iter3_plus_AS2M.pt")
             self.cfg = BEATsConfig(
                 {
-                    **self.checkpoint["cfg"],
+                    **self.beats["cfg"],
                     "finetuned_model": False,
                     "specaugment_params": self.specaugment_params,
                 }
             )
             self.model = BEATs(self.cfg)
-            self.model.load_state_dict(self.checkpoint["model"])
+
+            if self.state == "train":
+                self.model.load_state_dict(self.checkpoint["model"])
+
+            if self.state == "validate":
+                self.model.load_state_dict(self.checkpoint["state_dict"], strict=False)
 
         if self.model_type == "pann":
             print("[MODEL] Loading the PANN model")
@@ -83,11 +93,9 @@ class ProtoBEATsModel(pl.LightningModule):
                     del self.checkpoint["model"][key]
                 self.model.load_state_dict(self.checkpoint["model"])
 
-            if self.state == "validate":
+            if self.state == "validate": 
                 self.model.load_state_dict(self.checkpoint["state_dict"], strict=False) # we set strict = False because the names of the modules slightly vary
 
-            else:
-                print("[ERROR] Select train or validate as the 'state' variable in the CONFIG file")
         else:
             print("[ERROR] the model specified is not included in the pipeline. Please use 'baseline', 'pann' or 'beats'")
 

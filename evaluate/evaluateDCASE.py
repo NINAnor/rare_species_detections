@@ -46,7 +46,8 @@ def train_model(
     num_sanity_val_steps=0,
     seed=42,
     pretrained_model=None,
-    state=None
+    state=None,
+    beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt"
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
@@ -67,7 +68,7 @@ def train_model(
         # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
 
-    model = ProtoBEATsModel(model_type=model_type, model_path=pretrained_model, state=state)
+    model = ProtoBEATsModel(model_type=model_type, model_path=pretrained_model, state=state, beats_path=beats_path)
 
     # train the model
     trainer.fit(model, datamodule=datamodule_class)
@@ -75,7 +76,7 @@ def train_model(
     return model
 
 
-def training(model_type, pretrained_model, state, custom_datamodule, max_epoch):
+def training(model_type, pretrained_model, state, custom_datamodule, max_epoch, beats_path):
 
     model = train_model(
         model_type,
@@ -85,7 +86,8 @@ def training(model_type, pretrained_model, state, custom_datamodule, max_epoch):
         num_sanity_val_steps=0,
         seed=42,
         pretrained_model=pretrained_model,
-        state=state
+        state=state,
+        beats_path=beats_path
     )
 
     return model
@@ -163,7 +165,10 @@ def predict_labels_query(
         # Get the scores:
         classification_scores, dists = calculate_distance(model_type, q_embedding, prototypes)
 
-        print(dists.shape)
+        if model_type != "beats":
+            dists = dists.squeeze()
+            classification_scores = classification_scores.squeeze()
+
         # Get the z_score:
         z_score = compute_z_scores(
             dists[pos_index],
@@ -298,7 +303,12 @@ def main(
 
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
-    model = training(cfg["model"]["model_type"], cfg["model"]["model_path"], cfg["model"]["state"], custom_dcasedatamodule, max_epoch=cfg["trainer"]["max_epochs"])
+    model = training(cfg["model"]["model_type"], 
+                     cfg["model"]["model_path"], 
+                     cfg["model"]["state"], 
+                     custom_dcasedatamodule, 
+                     max_epoch=cfg["trainer"]["max_epochs"],
+                     beats_path=cfg["model"]["beats_path"])
     model_type = cfg["model"]["model_type"]
 
     # Get the prototypes coordinates
@@ -368,7 +378,12 @@ def main(
         # Train the model with the support data
         print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
 
-        model = training(cfg["model"]["model_type"], cfg["model"]["model_path"], cfg["model"]["state"], custom_dcasedatamodule, max_epoch=1)
+        model = training(cfg["model"]["model_type"], 
+                         cfg["model"]["model_path"], 
+                         cfg["model"]["state"], 
+                         custom_dcasedatamodule, 
+                         max_epoch=1,
+                         beats_path=cfg["model"]["beats_path"])
 
         # Get the prototypes coordinates
         a = custom_dcasedatamodule.test_dataloader()
