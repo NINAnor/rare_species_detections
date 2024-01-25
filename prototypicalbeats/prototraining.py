@@ -26,6 +26,8 @@ class ProtoBEATsModel(pl.LightningModule):
         model_path: str = None,
         distance: str = "euclidean", 
         specaugment_params = None,   
+        state: str = None,
+        beats_path: str = "/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -40,22 +42,13 @@ class ProtoBEATsModel(pl.LightningModule):
         self.milestones = milestones
         self.distance = distance
         self.model_type = model_type
-            
-        # If BEATS --> initialise BEATs model
-        if self.model_type == "beats":
-            self.checkpoint = torch.load(model_path)
-            self.cfg = BEATsConfig(
-                {
-                    **self.checkpoint["cfg"],
-                    "finetuned_model": False,
-                    "specaugment_params": specaugment_params,
-                }
-            )
-        
-        # If we are using the PANN model:
-        if self.model_type == "pann":
-            self.checkpoint = torch.load(model_path)
+        self.state = state
+        self.specaugment_params = specaugment_params 
+        self.beats_path = beats_path
 
+        if model_path: 
+            self.checkpoint = torch.load(model_path)
+            
         self._build_model()
         self.save_hyperparameters()
 
@@ -68,20 +61,41 @@ class ProtoBEATsModel(pl.LightningModule):
             print("[MODEL] Loading the baseline model")
             self.model = ProtoNet()
 
+            if self.state == "evaluate":
+                self.model.load_state_dict(self.checkpoint["state_dict"])
+
         if self.model_type == "beats":
             print("[MODEL] Loading the BEATs model")
+            self.beats = torch.load("/data/model/BEATs/BEATs_iter3_plus_AS2M.pt")
+            self.cfg = BEATsConfig(
+                {
+                    **self.beats["cfg"],
+                    "finetuned_model": False,
+                    "specaugment_params": self.specaugment_params,
+                }
+            )
             self.model = BEATs(self.cfg)
-            self.model.load_state_dict(self.checkpoint["model"])
+
+            if self.state == "train":
+                self.model.load_state_dict(self.checkpoint["model"])
+
+            if self.state == "validate":
+                self.model.load_state_dict(self.checkpoint["state_dict"], strict=False)
 
         if self.model_type == "pann":
             print("[MODEL] Loading the PANN model")
-            layers_to_remove = ["spectrogram_extractor.stft.conv_real.weight", "spectrogram_extractor.stft.conv_imag.weight", "logmel_extractor.melW",
-                                "fc_audioset.weight", "fc_audioset.bias"]
-            
-            for key in layers_to_remove:
-                del self.checkpoint["model"][key]
             self.model = Cnn14()
-            self.model.load_state_dict(self.checkpoint["model"])
+
+            if self.state == "train":
+                layers_to_remove = ["spectrogram_extractor.stft.conv_real.weight", "spectrogram_extractor.stft.conv_imag.weight", "logmel_extractor.melW",
+                    "fc_audioset.weight", "fc_audioset.bias"]
+                for key in layers_to_remove:
+                    del self.checkpoint["model"][key]
+                self.model.load_state_dict(self.checkpoint["model"])
+
+            if self.state == "validate": 
+                self.model.load_state_dict(self.checkpoint["state_dict"], strict=False) # we set strict = False because the names of the modules slightly vary
+
         else:
             print("[ERROR] the model specified is not included in the pipeline. Please use 'baseline', 'pann' or 'beats'")
 
