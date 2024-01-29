@@ -6,12 +6,12 @@ from pytorch_lightning.callbacks.finetuning import BaseFinetuning
 
 # See https://github.com/PyTorchLightning/pytorch-lightning/blob/master/pl_examples/domain_templates/computer_vision_fine_tuning.py
 class MilestonesFinetuning(BaseFinetuning):
-    def __init__(self, milestones: int = 1):
+    def __init__(self, milestones: int = 100):
         super().__init__()
         self.milestones = milestones
 
     def freeze_before_training(self, pl_module: pl.LightningModule):
-        self.freeze(modules=pl_module.beats)
+        self.freeze(modules=pl_module.model)
 
     def finetune_function(
         self,
@@ -23,5 +23,5 @@ class MilestonesFinetuning(BaseFinetuning):
         if epoch == self.milestones:
             # unfreeze BEATs
             self.unfreeze_and_add_param_group(
-                modules=pl_module.beats, optimizer=optimizer
+                modules=pl_module.model, optimizer=optimizer
             )

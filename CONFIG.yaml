@@ -10,17 +10,20 @@
 data:
   n_task_train: 100
   n_task_val: 100
-  target_fs: 16000
-  resample: true
-  denoise: true
-  normalize: true
-  frame_length: 25.0
-  tensor_length: 128
+  target_fs: 22050 # used in preprocessing
+  resample: true # used in preprocessing
+  denoise: true # used in preprocessing
+  normalize: true # used in preprocessing
+  frame_length: 25.0 # used in preprocessing
+  tensor_length: 128 # used in preprocessing
   n_shot: 5
   n_query: 10
-  overlap: 0.5
-  n_subsample: 1 # ask Femke what this stands for
-  status: train # train or validate or evaluate
+  overlap: 0.5 # used in preprocessing
+  n_subsample: 1 
+  num_mel_bins: 128 # used in preprocessing
+  max_segment_length: 1.0 # used in preprocessing
+  status: train # used in preprocessing, train or validate or evaluate
+  
 
 #################################
 # PARAMETERS FOR MODEL TRAINING #
@@ -28,7 +31,7 @@ data:
 # Be sure the parameters match the ones in data processing
 
 trainer:
-  max_epochs: 1
+  max_epochs: 25
   default_root_dir: /data
   accelerator: gpu
   gpus: 1
@@ -36,7 +39,9 @@ trainer:
 model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
-  model_path: /data/BEATs/BEATs_iter3_plus_AS2M.pt # Or FOR INFERENCE: /data/lightning_logs/version_X/checkpoints/epoch=X-step=1500.ckpt
+  model_type: beats # beats, pann or baseline
+  state: None # train or validate or None if using beats or baseline // since we remove from layers from the original PANN we can't load the ckpts normally (see _build_model in prototraining.py)
+  model_path: /data/lightning_logs/version_96/checkpoints/epoch=85-step=8600.ckpt #/data/lightning_logs/pann/lightning_logs/version_1/checkpoints/epoch=99-step=10000.ckpt #/data/lightning_logs/pann/lightning_logs/version_1/checkpoints/epoch=99-step=10000.ckpt #/data/model/PANN/Cnn14_mAP=0.431.pth # /data/model/BEATs/BEATs_iter3_plus_AS2M.pt #   # Or FOR INFERENCE: /data/lightning_logs/version_X/checkpoints/epoch=X-step=1500.ckpt
   specaugment_params: null
   # specaugment_params:
   #   application_ratio: 1.0

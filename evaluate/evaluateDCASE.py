@@ -39,14 +39,15 @@ def to_dataframe(features, labels):
 
 
 def train_model(
-    model_class=ProtoBEATsModel,
+    model_type="pann",
     datamodule_class=DCASEDataModule,
-    milestones=[10, 20, 30],
     max_epochs=15,
     enable_model_summary=False,
     num_sanity_val_steps=0,
     seed=42,
     pretrained_model=None,
+    state=None,
+    beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt"
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
@@ -67,6 +68,7 @@ def train_model(
         # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
 
+
     # create the model object
     model = model_class(milestones=milestones)
 
@@ -75,9 +77,10 @@ def train_model(
         try:
             pretrained_model = ProtoBEATsModel.load_from_checkpoint(pretrained_model)
         except KeyError:
-            print("Failed to load the pretrained model. Please check the checkpoint file.")
+            print(
+                "Failed to load the pretrained model. Please check the checkpoint file."
+            )
             return None
-
 
     # train the model
     trainer.fit(model, datamodule=datamodule_class)
@@ -85,23 +88,29 @@ def train_model(
     return model
 
 
-def training(pretrained_model, custom_datamodule, max_epoch, milestones=[10, 20, 30]):
+def training(model_type, pretrained_model, state, custom_datamodule, max_epoch, beats_path):
+
     model = train_model(
-        ProtoBEATsModel,
+        model_type,
         custom_datamodule,
-        milestones,
         max_epochs=max_epoch,
         enable_model_summary=False,
         num_sanity_val_steps=0,
         seed=42,
         pretrained_model=pretrained_model,
+        state=state,
+        beats_path=beats_path
     )
 
     return model
 
 
-def get_proto_coordinates(model, support_data, support_labels, n_way):
-    z_supports, _ = model.get_embeddings(support_data, padding_mask=None)
+def get_proto_coordinates(model, model_type, support_data, support_labels, n_way):
+
+    if model_type == "beats":
+        z_supports, _ = model.get_embeddings(support_data, padding_mask=None)
+    else:
+        z_supports = model.get_embeddings(support_data, padding_mask=None)
 
     # Get the coordinates of the NEG and POS prototypes
     prototypes = model.get_prototypes(
@@ -114,6 +123,7 @@ def get_proto_coordinates(model, support_data, support_labels, n_way):
 
 def predict_labels_query(
     model,
+    model_type,
     z_supports,
     queryloader,
     prototypes,
@@ -133,7 +143,7 @@ def predict_labels_query(
     # Get POS prototype
     POS_prototype = prototypes[pos_index].to("cuda")
     d_supports_to_POS_prototypes, _ = calculate_distance(
-        z_supports.to("cuda"), POS_prototype
+        model_type, z_supports.to("cuda"), POS_prototype
     )
     mean_dist_supports = d_supports_to_POS_prototypes.mean(0)
     std_dist_supports = d_supports_to_POS_prototypes.std(0)
@@ -150,8 +160,11 @@ def predict_labels_query(
         # Get the embeddings for the query
         feature, label = data
         feature = feature.to("cuda")
-        q_embedding, _ = model.get_embeddings(feature, padding_mask=None)
 
+        if model_type == "beats":
+            q_embedding, _ = model.get_embeddings(feature, padding_mask=None)
+        else:
+            q_embedding = model.get_embeddings(feature, padding_mask=None)
         # Calculate beginTime and endTime for each segment
         # We multiply by 100 to get the time in seconds
         if i == 0:
@@ -162,11 +175,17 @@ def predict_labels_query(
             end = begin + tensor_length * frame_shift / 1000
 
         # Get the scores:
-        classification_scores, dists = calculate_distance(q_embedding, prototypes)
+        classification_scores, dists = calculate_distance(model_type, q_embedding, prototypes)
+
+        if model_type != "beats":
+            dists = dists.squeeze()
+            classification_scores = classification_scores.squeeze()
 
         # Get the z_score:
         z_score = compute_z_scores(
-            dists[pos_index], mean_dist_supports, std_dist_supports
+            dists[pos_index],
+            mean_dist_supports, 
+            std_dist_supports
         )
 
         # Get the labels (either POS or NEG):
@@ -214,7 +233,7 @@ def euclidean_distance(x1, x2):
     return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))
 
 
-def calculate_distance(z_query, z_proto):
+def calculate_distance(model_type, z_query, z_proto):
     # Compute the euclidean distance from queries to prototypes
     dists = []
     for q in z_query:
@@ -224,8 +243,9 @@ def calculate_distance(z_query, z_proto):
         )  # Contrary to prototraining I need to add a dimension to store the
     dists = torch.cat(dists, dim=0)
 
-    # We drop the last dimension without changing the gradients
-    dists = dists.mean(dim=2).squeeze()
+    if model_type == "beats":
+        # We drop the last dimension without changing the gradients
+        dists = dists.mean(dim=2).squeeze()
 
     scores = -dists
 
@@ -295,13 +315,17 @@ def main(
 
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
+    model = training(
+        cfg["model"]["model_path"],
+        custom_dcasedatamodule,
+        max_epoch=cfg["trainer"]["max_epochs"],
+    )
 
-    model = training(cfg["model"]["model_path"], custom_dcasedatamodule, max_epoch=cfg["trainer"]["max_epochs"])
 
     # Get the prototypes coordinates
     a = custom_dcasedatamodule.test_dataloader()
     s, sl, _, _, ways = a
-    prototypes, z_supports = get_proto_coordinates(model, s, sl, n_way=len(ways))
+    prototypes, z_supports = get_proto_coordinates(model, model_type, s, sl, n_way=len(ways))
 
     ### Get the query dataset ###
     df_query = to_dataframe(query_spectrograms, query_labels)
@@ -322,6 +346,7 @@ def main(
         z_score_pos,
     ) = predict_labels_query(
         model,
+        model_type,
         z_supports,
         queryLoader,
         prototypes,
@@ -364,7 +389,9 @@ def main(
         # Train the model with the support data
         print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
 
-        model = training(cfg["model"]["model_path"], custom_dcasedatamodule, max_epoch=1)
+        model = training(
+            cfg["model"]["model_path"], custom_dcasedatamodule, max_epoch=1
+        )
 
         # Get the prototypes coordinates
         a = custom_dcasedatamodule.test_dataloader()
@@ -381,6 +408,7 @@ def main(
             z_score_pos,
         ) = predict_labels_query(
             model,
+            model_type,
             z_supports,
             queryLoader,
             prototypes,
@@ -424,7 +452,9 @@ def main(
     )
 
     result_POS_merged = merge_preds(
-        df=result_POS, tolerence=cfg["tolerance"], tensor_length=cfg["data"]["tensor_length"]
+        df=result_POS,
+        tolerence=cfg["tolerance"],
+        tensor_length=cfg["data"]["tensor_length"],
     )
 
     # Add the filename
@@ -478,19 +508,43 @@ def write_wav(
     # Expand the dimensions
     gt_labels = np.repeat(
         np.squeeze(gt_labels, axis=1).T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
     pred_labels = np.repeat(
         pred_labels.T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
     distances_to_pos = np.repeat(
         distances_to_pos.T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
     z_scores_pos = np.repeat(
         z_scores_pos.T,
-        int(cfg["data"]["tensor_length"] * cfg["data"]["overlap"] * target_fs * frame_shift / 1000),
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
     )
 
     # pad with zeros
@@ -575,10 +629,10 @@ if __name__ == "__main__":
     version_name = os.path.basename(version_path)
 
     # Select 'set_type' depending on chosen status
-    if cfg["data"]["status"]=="train":
+    if cfg["data"]["status"] == "train":
         cfg["data"]["set_type"] = "Training_Set"
 
-    elif cfg["data"]["status"]=="validate":
+    elif cfg["data"]["status"] == "validate":
         cfg["data"]["set_type"] = "Validation_Set"
 
     else:
@@ -592,10 +646,12 @@ if __name__ == "__main__":
         "frame_length": cfg["data"]["frame_length"],
         "tensor_length": cfg["data"]["tensor_length"],
         "set_type": cfg["data"]["set_type"],
-        "overlap": cfg["data"]["overlap"]
+        "overlap": cfg["data"]["overlap"],
+        "num_mel_bins": cfg["data"]["num_mel_bins"],
+        "max_segment_length": cfg["data"]["max_segment_length"],
     }
     if cfg["data"]["resample"]:
-        my_hash_dict["tartget_fs"] = cfg["data"]["target_fs"]
+        my_hash_dict["target_fs"] = cfg["data"]["target_fs"]
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
@@ -616,11 +672,11 @@ if __name__ == "__main__":
         "support_labels_*.npy",
     )
     query_data_path = os.path.join(
-        "/data/DCASEfewshot", 
-        cfg["data"]["status"], 
-        hash_dir_name, 
-        "audio", 
-        "query_data_*.npz"
+        "/data/DCASEfewshot",
+        cfg["data"]["status"],
+        hash_dir_name,
+        "audio",
+        "query_data_*.npz",
     )
     query_labels_path = os.path.join(
         "/data/DCASEfewshot",
@@ -630,11 +686,7 @@ if __name__ == "__main__":
         "query_labels_*.npy",
     )
     meta_df_path = os.path.join(
-        "/data/DCASEfewshot", 
-        cfg["data"]["status"], 
-        hash_dir_name, 
-        "audio", 
-        "meta.csv"
+        "/data/DCASEfewshot", cfg["data"]["status"], hash_dir_name, "audio", "meta.csv"
     )
 
     # set target path

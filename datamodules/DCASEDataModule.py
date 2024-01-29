@@ -102,7 +102,8 @@ class DCASEDataModule(LightningDataModule):
         n_way: int = 5,
         n_subsample: int = 1,
         overlap: float = 0.5,
-
+        num_mel_bins: int = 128,
+        max_segment_length: float = 1.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -121,6 +122,8 @@ class DCASEDataModule(LightningDataModule):
         self.n_way = n_way
         self.n_subsample = n_subsample
         self.overlap = overlap
+        self.num_mel_bins = num_mel_bins
+        self.max_segment_length = max_segment_length
         self.setup()
 
     def setup(self, stage=None):
@@ -132,10 +135,12 @@ class DCASEDataModule(LightningDataModule):
             "frame_length": self.frame_length,
             "tensor_length": self.tensor_length,
             "set_type": self.set_type,
-            "overlap": self.overlap
+            "overlap": self.overlap,
+            "num_mel_bins": self.num_mel_bins,
+            "max_segment_length": self.max_segment_length,
         }
         if self.resample:
-            my_hash_dict["tartget_fs"] = self.target_fs
+            my_hash_dict["target_fs"] = self.target_fs
         hash_dir_name = hashlib.sha1(
             json.dumps(my_hash_dict, sort_keys=True).encode()
         ).hexdigest()
