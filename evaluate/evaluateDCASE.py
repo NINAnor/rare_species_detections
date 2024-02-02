@@ -41,7 +41,7 @@ def to_dataframe(features, labels):
 def train_model(
     model_type="pann",
     datamodule_class=DCASEDataModule,
-    max_epochs=15,
+    max_epochs=1,
     enable_model_summary=False,
     num_sanity_val_steps=0,
     seed=42,
@@ -51,7 +51,7 @@ def train_model(
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
-        max_epochs=-1,
+        max_epochs=1,
         enable_model_summary=enable_model_summary,
         num_sanity_val_steps=num_sanity_val_steps,
         deterministic=True,
@@ -65,12 +65,10 @@ def train_model(
         ],
         default_root_dir="logs/",
         enable_checkpointing=False
-        # logger=pl.loggers.TensorBoardLogger("logs/", name="my_model"),
     )
 
-
     # create the model object
-    model = model_class(milestones=milestones)
+    model = ProtoBEATsModel(model_type=model_type)
 
     if pretrained_model:
         # Load the pretrained model
@@ -283,8 +281,7 @@ def merge_preds(df, tolerence, tensor_length):
     result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
 
-
-def main(
+def compute(
     cfg,
     meta_df,
     support_spectrograms,
@@ -316,11 +313,15 @@ def main(
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
     model = training(
-        cfg["model"]["model_path"],
-        custom_dcasedatamodule,
-        max_epoch=cfg["trainer"]["max_epochs"],
+        model_type=cfg["model"]["model_type"], 
+        pretrained_model=cfg["model"]["model_path"],
+        state=cfg["model"]["state"], 
+        custom_datamodule=custom_dcasedatamodule, 
+        max_epoch=cfg["trainer"]["max_epochs"], 
+        beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt"
     )
 
+    model_type = cfg["model"]["model_type"]
 
     # Get the prototypes coordinates
     a = custom_dcasedatamodule.test_dataloader()
@@ -573,59 +574,19 @@ def write_wav(
     )
     wavfile.write(output, target_fs, result_wav.T)
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--config",
-        help="Path to the config file",
-        required=False,
-        default="./CONFIG.yaml",
-        type=str,
-    )
-
-    parser.add_argument(
-        "--wav_save",
-        help="Should the results be also saved as a .wav file?",
-        default=False,
-        required=False,
-        action="store_true",
-    )
-
-    parser.add_argument(
-        "--overwrite",
-        help="Remove earlier obtained results at start",
-        default=False,
-        required=False,
-        action="store_true",
-    )
-
-    parser.add_argument(
-        "--n_self_detected_supports",
-        help="Remove earlier obtained results at start",
-        default=0,
-        required=False,
-        type=int,
-    )
-
-    parser.add_argument(
-        "--tolerance",
-        help="How many non detection in detection still counts for a detection",
-        default=0,
-        required=False,
-        type=int,
-    )
-
-    cli_args = parser.parse_args()
-
+import hydra
+from omegaconf import DictConfig, OmegaConf
+@hydra.main(version_base=None, config_path=".", config_name="CONFIG_PREDICT.yaml")
+def main(cfg: DictConfig):
+    cfg = OmegaConf.load(cfg)
+    #cfg = OmegaConf.to_yaml(cfg)
     # Get evalution config
-    with open(cli_args.config) as f:
-        cfg = yaml.load(f, Loader=FullLoader)
-
+    #with open(config) as f:
+    #    cfg = yaml.load(f, Loader=FullLoader)
+    print(f"PRINTING:{cfg}")
     # Get training config
     version_path = os.path.dirname(os.path.dirname(cfg["model"]["model_path"]))
-    training_config_path = os.path.join(version_path, "config.yaml")
+    #training_config_path = os.path.join(version_path, "config.yaml")
     version_name = os.path.basename(version_path)
 
     # Select 'set_type' depending on chosen status
@@ -698,7 +659,7 @@ if __name__ == "__main__":
         version_name,
         "results_{date:%Y%m%d_%H%M%S}".format(date=datetime.now()),
     )
-    if cli_args.overwrite:
+    if cfg["predict"]["overwrite"]:
         if os.path.exists(target_path):
             shutil.rmtree(target_path)
 
@@ -707,15 +668,18 @@ if __name__ == "__main__":
 
     # save params for eval
     param = deepcopy(cfg)
+    # Convert the DictConfig object to a standard Python dictionary
+    param = OmegaConf.to_container(param, resolve=True)
     param["overlap"] = cfg["data"]["overlap"]
-    param["tolerance"] = cli_args.tolerance
-    param["n_self_detected_supports"] = cli_args.n_self_detected_supports
+    param["tolerance"] = cfg["predict"]["tolerance"]
+    param["n_self_detected_supports"] = cfg["predict"]["n_self_detected_supports"]
     param["n_subsample"] = cfg["data"]["n_subsample"]
+    
     with open(os.path.join(target_path, "param.json"), "w") as fp:
         json.dump(param, fp)
 
     # Get all the files from the Validation / Evaluation set - when save wav option -
-    if cli_args.wav_save:
+    if cfg["predict"]["wav_save"]:
         path = os.path.join("/data/DCASE/Development_Set", my_hash_dict["set_type"])
         files = glob.glob(path + "/**/*.wav", recursive=True)
 
@@ -758,19 +722,19 @@ if __name__ == "__main__":
             distances_to_pos,
             z_score_pos,
             result_raw,
-        ) = main(
+        ) = compute(
             param,
             meta_df,
             support_spectrograms,
             support_labels,
             query_spectrograms,
             query_labels,
-            cli_args.n_self_detected_supports,
+            cfg["predict"]["n_self_detected_supports"],
         )
 
         results = results.append(result)
         results_raw = results_raw.append(result_raw)
-        if cli_args.wav_save:
+        if cfg["predict"]["wav_save"]:
             write_wav(
                 files,
                 param,
@@ -800,3 +764,57 @@ if __name__ == "__main__":
         index=False,
     )
     print("Evaluation Finished. Results saved to " + target_path)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--config",
+        help="Path to the config file",
+        required=False,
+        default="./CONFIG.yaml",
+        type=str,
+    )
+
+#    parser.add_argument(
+#        "--wav_save",
+#        help="Should the results be also saved as a .wav file?",
+#        default=False,
+#        required=False,
+#        action="store_true",
+#    )
+
+#    parser.add_argument(
+#        "--overwrite",
+#        help="Remove earlier obtained results at start",
+#        default=False,
+#        required=False,
+#        action="store_true",
+#    )
+#
+#    parser.add_argument(
+#        "--n_self_detected_supports",
+#        help="Remove earlier obtained results at start",
+#        default=0,
+#        required=False,
+#        type=int,
+#    )
+
+#    parser.add_argument(
+#        "--tolerance",
+#        help="How many non detection in detection still counts for a detection",
+#        default=0,
+#        required=False,
+#        type=int,
+#    )
+
+    cli_args = parser.parse_args()
+
+    main(cli_args.config), 
+         #cli_args.overwrite, 
+         #cli_args.tolerance, 
+         #cli_args.n_self_detected_supports, 
+         #cli_args.wav_save)
+
+
