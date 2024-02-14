@@ -51,7 +51,7 @@ def train_model(
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
-        max_epochs=1,
+        max_epochs=10,
         enable_model_summary=enable_model_summary,
         num_sanity_val_steps=num_sanity_val_steps,
         deterministic=True,
@@ -289,6 +289,7 @@ def compute(
     query_spectrograms,
     query_labels,
     n_self_detected_supports,
+    target_path="/data"
 ):
     # Get the filename and the frame_shift for the particular file
     filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
@@ -576,28 +577,13 @@ def write_wav(
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-@hydra.main(version_base=None, config_path=".", config_name="CONFIG_PREDICT.yaml")
+@hydra.main(version_base=None, config_path="/app/", config_name="CONFIG_PREDICT.yaml")
 def main(cfg: DictConfig):
-    cfg = OmegaConf.load(cfg)
-    #cfg = OmegaConf.to_yaml(cfg)
-    # Get evalution config
-    #with open(config) as f:
-    #    cfg = yaml.load(f, Loader=FullLoader)
+    
     print(f"PRINTING:{cfg}")
     # Get training config
     version_path = os.path.dirname(os.path.dirname(cfg["model"]["model_path"]))
-    #training_config_path = os.path.join(version_path, "config.yaml")
     version_name = os.path.basename(version_path)
-
-    # Select 'set_type' depending on chosen status
-    if cfg["data"]["status"] == "train":
-        cfg["data"]["set_type"] = "Training_Set"
-
-    elif cfg["data"]["status"] == "validate":
-        cfg["data"]["set_type"] = "Validation_Set"
-
-    else:
-        cfg["data"]["set_type"] = "Evaluation_Set"
 
     # Get correct paths to dataset
     my_hash_dict = {
@@ -767,15 +753,15 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    #parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        "--config",
-        help="Path to the config file",
-        required=False,
-        default="./CONFIG.yaml",
-        type=str,
-    )
+    #parser.add_argument(
+    #    "--config",
+    #    help="Path to the config file",
+    #    required=False,
+    #    default="./CONFIG_PREDICT.yaml",
+    #    type=str,
+    #)
 
 #    parser.add_argument(
 #        "--wav_save",
@@ -809,9 +795,9 @@ if __name__ == "__main__":
 #        type=int,
 #    )
 
-    cli_args = parser.parse_args()
+    #cli_args = parser.parse_args()
 
-    main(cli_args.config), 
+    main(), 
          #cli_args.overwrite, 
          #cli_args.tolerance, 
          #cli_args.n_self_detected_supports, 
