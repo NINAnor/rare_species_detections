@@ -5,7 +5,7 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torch.optim.lr_scheduler import MultiStepLR
 from torch.optim.optimizer import Optimizer
-from torchmetrics import Accuracy
+from torchmetrics import Accuracy, F1Score
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.rank_zero import rank_zero_info
@@ -27,7 +27,7 @@ class ProtoBEATsModel(pl.LightningModule):
         distance: str = "euclidean", 
         specaugment_params = None,   
         state: str = None,
-        beats_path: str = "/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
+        beats_path: str = "/data/models/BEATs/BEATs_iter3_plus_AS2M.pt",
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -54,9 +54,10 @@ class ProtoBEATsModel(pl.LightningModule):
 
         self.train_acc = Accuracy(task="multiclass", num_classes=self.n_way)
         self.valid_acc = Accuracy(task="multiclass", num_classes=self.n_way)
+        self.train_f1 = F1Score(task="multiclass", num_classes=self.n_way)
+        self.valid_f1 = F1Score(task="multiclass", num_classes=self.n_way)
 
     def _build_model(self):
-
         if self.model_type == "baseline":
             print("[MODEL] Loading the baseline model")
             self.model = ProtoNet()
@@ -66,7 +67,7 @@ class ProtoBEATsModel(pl.LightningModule):
 
         if self.model_type == "beats":
             print("[MODEL] Loading the BEATs model")
-            self.beats = torch.load("/data/model/BEATs/BEATs_iter3_plus_AS2M.pt")
+            self.beats = torch.load(self.beats_path)
             self.cfg = BEATsConfig(
                 {
                     **self.beats["cfg"],
@@ -87,7 +88,10 @@ class ProtoBEATsModel(pl.LightningModule):
             self.model = Cnn14()
 
             if self.state == "train":
-                layers_to_remove = ["spectrogram_extractor.stft.conv_real.weight", "spectrogram_extractor.stft.conv_imag.weight", "logmel_extractor.melW",
+                layers_to_remove = [
+                    "spectrogram_extractor.stft.conv_real.weight", 
+                    "spectrogram_extractor.stft.conv_imag.weight", 
+                    "logmel_extractor.melW",
                     "fc_audioset.weight", "fc_audioset.bias"]
                 for key in layers_to_remove:
                     del self.checkpoint["model"][key]
@@ -96,8 +100,8 @@ class ProtoBEATsModel(pl.LightningModule):
             if self.state == "validate": 
                 self.model.load_state_dict(self.checkpoint["state_dict"], strict=False) # we set strict = False because the names of the modules slightly vary
 
-        else:
-            print("[ERROR] the model specified is not included in the pipeline. Please use 'baseline', 'pann' or 'beats'")
+        #else:
+        #    print("[ERROR] the model specified is not included in the pipeline. Please use 'baseline', 'pann' or 'beats'")
 
 
     def euclidean_distance(self, x1, x2):
@@ -201,6 +205,7 @@ class ProtoBEATsModel(pl.LightningModule):
         # 3. Compute accuracy:
         predicted_labels = torch.max(classification_scores, 1)[1]
         self.log("train_acc", self.train_acc(predicted_labels, query_labels), prog_bar=True)
+        self.log("train_f1", self.train_f1(predicted_labels, query_labels), prog_bar=True)
 
         return train_loss
 
@@ -217,6 +222,7 @@ class ProtoBEATsModel(pl.LightningModule):
         # 3. Compute accuracy:
         predicted_labels = torch.max(classification_scores, 1)[1]
         self.log("val_acc", self.valid_acc(predicted_labels, query_labels), prog_bar=True)
+        self.log("val_f1", self.val_f1(predicted_labels, query_labels), prog_bar=True)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(
