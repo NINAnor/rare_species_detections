@@ -47,7 +47,7 @@ def denoise_signal(samples, sr):
         sr=sr,
         prop_decrease=0.95,
         stationary=True,
-        time_mask_smooth_ms=45,
+        time_mask_smooth_ms=25,
         freq_mask_smooth_hz=1000,
     )
     return denoised_signal_samples
@@ -314,10 +314,10 @@ def prepare_training_val_data(
         audio_path = file.replace("csv", "wav")
         print("Processing file name {}".format(audio_path))
         y, fs = librosa.load(audio_path, sr=None, mono=True)
-        if not resample or my_hash_dict["target_fs"] > fs:
+        if not resample: # or my_hash_dict["target_fs"] > fs:
             target_fs = fs
-        else:
-            target_fs = my_hash_dict["target_fs"]
+        #else:
+        #    target_fs = my_hash_dict["target_fs"]
         df = df[(df == "POS").any(axis=1)]
         df = df.reset_index()
 
