@@ -488,6 +488,7 @@ def write_wav(
     target_fs=16000,
     target_path=None,
     frame_shift=1,
+    support_spectrograms=None
 ):
     from scipy.io import wavfile
 
@@ -731,6 +732,7 @@ def main(cfg: DictConfig):
                 target_fs=cfg["data"]["target_fs"],
                 target_path=target_path,
                 frame_shift=meta_df.loc[filename, "frame_shift"],
+                support_spectrograms=support_spectrograms
             )
 
     # Return the final product
@@ -753,54 +755,7 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    #parser = argparse.ArgumentParser()
-
-    #parser.add_argument(
-    #    "--config",
-    #    help="Path to the config file",
-    #    required=False,
-    #    default="./CONFIG_PREDICT.yaml",
-    #    type=str,
-    #)
-
-#    parser.add_argument(
-#        "--wav_save",
-#        help="Should the results be also saved as a .wav file?",
-#        default=False,
-#        required=False,
-#        action="store_true",
-#    )
-
-#    parser.add_argument(
-#        "--overwrite",
-#        help="Remove earlier obtained results at start",
-#        default=False,
-#        required=False,
-#        action="store_true",
-#    )
-#
-#    parser.add_argument(
-#        "--n_self_detected_supports",
-#        help="Remove earlier obtained results at start",
-#        default=0,
-#        required=False,
-#        type=int,
-#    )
-
-#    parser.add_argument(
-#        "--tolerance",
-#        help="How many non detection in detection still counts for a detection",
-#        default=0,
-#        required=False,
-#        type=int,
-#    )
-
-    #cli_args = parser.parse_args()
-
     main(), 
-         #cli_args.overwrite, 
-         #cli_args.tolerance, 
-         #cli_args.n_self_detected_supports, 
-         #cli_args.wav_save)
+
 
 
