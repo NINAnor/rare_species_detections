@@ -11,27 +11,29 @@ data:
   n_task_train: 100
   n_task_val: 100
   target_fs: 16000 # used in preprocessing
-  resample: true # used in preprocessing
-  denoise: true # used in preprocessing
-  normalize: true # used in preprocessing
+  resample: True # used in preprocessing
+  denoise: True # used in preprocessing
+  normalize: True # used in preprocessing
   frame_length: 25.0 # used in preprocessing
   tensor_length: 128 # used in preprocessing
-  n_shot: 5
-  n_query: 10
+  n_shot: 2
+  n_query: 3
   overlap: 0.5 # used in preprocessing
   n_subsample: 1 
   num_mel_bins: 128 # used in preprocessing
   max_segment_length: 1.0 # used in preprocessing
   status: validate # used in preprocessing, train or validate or evaluate
+  set_type: "Validation_Set"
   
 
 #################################
 # PARAMETERS FOR MODEL TRAINING #
 #################################
 # Be sure the parameters match the ones in data processing
+# Otherwise the hash of the folders will be different!!
 
 trainer:
-  max_epochs: 500
+  max_epochs: 5
   default_root_dir: /data
   accelerator: gpu
   gpus: 1
@@ -40,15 +42,19 @@ model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
   model_type: beats # beats, pann or baseline
-  state: None # train or validate or None if using beats or baseline // since we remove from layers from the original PANN we can't load the ckpts normally (see _build_model in prototraining.py)
-  model_path:  /data/models/BEATs/BEATs_iter3_plus_AS2M.pt 
+  state: None # train or validate if pann or None if using beats or baseline // since we remove from layers from the original PANN we can't load the ckpts normally (see _build_model in prototraining.py)
+  model_path: "/data/lightning_logs/version_0/checkpoints/epoch=24-step=2500.ckpt"
   specaugment_params: null
   # specaugment_params:
   #   application_ratio: 1.0
   #   time_mask: 40  
   #   freq_mask: 40 
 
-##################################################################
-# PARAMETERS FOR RUNNING THE TRAINED MODEL ON THE EVALUATION SET #
-##################################################################
-
+###################################
+# PARAMETERS FOR MODEL PREDICTION #
+###################################
+predict:
+  wav_save: True
+  overwrite: True
+  n_self_detected_supports: 0
+  tolerance: 0
