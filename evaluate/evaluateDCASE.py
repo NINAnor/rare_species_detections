@@ -643,6 +643,7 @@ def main(cfg: DictConfig):
         cfg["data"]["status"],
         hash_dir_name,
         "results",
+        cfg["model"]["model_type"],
         version_name,
         "results_{date:%Y%m%d_%H%M%S}".format(date=datetime.now()),
     )

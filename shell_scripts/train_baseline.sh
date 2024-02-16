@@ -12,6 +12,6 @@ fi
 
 docker run -v $BASE_FOLDER:/data -v $PWD:/app --gpus all beats poetry run prototypicalbeats/trainer.py fit \
     --config $CONFIG_PATH \
-    --model.model_type baseline \
-    --model.state train \
-    --trainer.default_root_dir "/data/lightning_logs/baseline"
+    --model_type baseline \
+    --state train \
+    --trainer.default_root_dir /data/lightning_logs/BASELINE/
