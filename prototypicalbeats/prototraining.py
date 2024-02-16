@@ -222,7 +222,7 @@ class ProtoBEATsModel(pl.LightningModule):
         # 3. Compute accuracy:
         predicted_labels = torch.max(classification_scores, 1)[1]
         self.log("val_acc", self.valid_acc(predicted_labels, query_labels), prog_bar=True)
-        self.log("val_f1", self.val_f1(predicted_labels, query_labels), prog_bar=True)
+        self.log("valid_f1", self.valid_f1(predicted_labels, query_labels), prog_bar=True)
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(
