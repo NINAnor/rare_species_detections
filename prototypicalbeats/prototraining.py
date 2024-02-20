@@ -10,6 +10,8 @@ from torchmetrics import Accuracy, F1Score
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
+from collections import OrderedDict
+
 from BEATs.BEATs import BEATs, BEATsConfig
 from Models.baseline import ProtoNet
 from Models.pann import Cnn14
@@ -48,6 +50,13 @@ class ProtoBEATsModel(pl.LightningModule):
 
         if model_path: 
             self.checkpoint = torch.load(model_path)
+            if self.state == "validate":
+                self.adjusted_state_dict= OrderedDict()
+                for k, v in self.checkpoint["state_dict"].items():
+                    # Check if the key starts with 'module.' and remove it only then
+                    name = k[6:] if k.startswith('model.') else k
+                    self.adjusted_state_dict[name] = v
+                    
             
         self._build_model()
         self.save_hyperparameters()
@@ -60,10 +69,12 @@ class ProtoBEATsModel(pl.LightningModule):
     def _build_model(self):
         if self.model_type == "baseline":
             print("[MODEL] Loading the baseline model")
+
             self.model = ProtoNet()
 
-            if self.state == "evaluate":
-                self.model.load_state_dict(self.checkpoint["state_dict"])
+            if self.state == "validate":
+                print("LOADING THE FINE-TUNED MODEL")
+                self.model.load_state_dict(self.adjusted_state_dict, strict=True)
 
         if self.model_type == "beats":
             print("[MODEL] Loading the BEATs model")
@@ -78,10 +89,12 @@ class ProtoBEATsModel(pl.LightningModule):
             self.model = BEATs(self.cfg)
 
             if self.state == "train":
+                print("LOADING AUDIOSET PRE-TRAINED MODEL")
                 self.model.load_state_dict(self.checkpoint["model"])
 
             if self.state == "validate":
-                self.model.load_state_dict(self.checkpoint["state_dict"], strict=False)
+                print("LOADING THE FINE-TUNED MODEL")
+                self.model.load_state_dict(self.adjusted_state_dict, strict=True)
 
         if self.model_type == "pann":
             print("[MODEL] Loading the PANN model")
@@ -95,10 +108,12 @@ class ProtoBEATsModel(pl.LightningModule):
                     "fc_audioset.weight", "fc_audioset.bias"]
                 for key in layers_to_remove:
                     del self.checkpoint["model"][key]
+                print("LOADING AUDIOSET PRE-TRAINED MODEL")
                 self.model.load_state_dict(self.checkpoint["model"])
 
             if self.state == "validate": 
-                self.model.load_state_dict(self.checkpoint["state_dict"], strict=False) # we set strict = False because the names of the modules slightly vary
+                print("LOADING THE FINE-TUNED MODEL")
+                self.model.load_state_dict(self.adjusted_state_dict, strict=True) 
 
         #else:
         #    print("[ERROR] the model specified is not included in the pipeline. Please use 'baseline', 'pann' or 'beats'")
