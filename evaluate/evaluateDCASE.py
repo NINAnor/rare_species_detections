@@ -27,6 +27,8 @@ import pytorch_lightning as pl
 
 from callbacks.callbacks import MilestonesFinetuning
 
+from evaluate._utils_writing import write_wav, write_results
+
 
 def to_dataframe(features, labels):
     # Load the saved array and map the features and labels into a single dataframe
@@ -39,7 +41,7 @@ def to_dataframe(features, labels):
 
 
 def train_model(
-    model_type="pann",
+    model_type=None,
     datamodule_class=DCASEDataModule,
     max_epochs=1,
     enable_model_summary=False,
@@ -68,17 +70,9 @@ def train_model(
     )
 
     # create the model object
-    model = ProtoBEATsModel(model_type=model_type)
-
-    if pretrained_model:
-        # Load the pretrained model
-        try:
-            pretrained_model = ProtoBEATsModel.load_from_checkpoint(pretrained_model)
-        except KeyError:
-            print(
-                "Failed to load the pretrained model. Please check the checkpoint file."
-            )
-            return None
+    model = ProtoBEATsModel(model_type=model_type, 
+                            state=state, 
+                            model_path=pretrained_model)
 
     # train the model
     trainer.fit(model, datamodule=datamodule_class)
@@ -478,103 +472,7 @@ def compute(
     )
 
 
-def write_wav(
-    files,
-    cfg,
-    gt_labels,
-    pred_labels,
-    distances_to_pos,
-    z_scores_pos,
-    target_fs=16000,
-    target_path=None,
-    frame_shift=1,
-    support_spectrograms=None
-):
-    from scipy.io import wavfile
 
-    # Some path management
-
-    filename = (
-        os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
-    )
-    # Return the final product
-    output = os.path.join(target_path, filename)
-
-    # Find the filepath for the file being analysed
-    for f in files:
-        if os.path.basename(f) == filename:
-            print(os.path.basename(f))
-            print(filename)
-            arr, _ = librosa.load(f, sr=target_fs, mono=True)
-            break
-
-    # Expand the dimensions
-    gt_labels = np.repeat(
-        np.squeeze(gt_labels, axis=1).T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-    pred_labels = np.repeat(
-        pred_labels.T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-    distances_to_pos = np.repeat(
-        distances_to_pos.T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-    z_scores_pos = np.repeat(
-        z_scores_pos.T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-
-    # pad with zeros
-    gt_labels = np.pad(
-        gt_labels, (0, len(arr) - len(gt_labels)), "constant", constant_values=(0,)
-    )
-    pred_labels = np.pad(
-        pred_labels, (0, len(arr) - len(pred_labels)), "constant", constant_values=(0,)
-    )
-    distances_to_pos = np.pad(
-        distances_to_pos,
-        (0, len(arr) - len(distances_to_pos)),
-        "constant",
-        constant_values=(0,),
-    )
-    z_scores_pos = np.pad(
-        z_scores_pos,
-        (0, len(arr) - len(z_scores_pos)),
-        "constant",
-        constant_values=(0,),
-    )
-
-    # Write the results
-    result_wav = np.vstack(
-        (arr, gt_labels, pred_labels, distances_to_pos / 10, z_scores_pos)
-    )
-    wavfile.write(output, target_fs, result_wav.T)
 
 import hydra
 from omegaconf import DictConfig, OmegaConf

@@ -319,8 +319,7 @@ if __name__ == "__main__":
     parser.add_argument('-dataset', type=str, help="which set to evaluate: EVAL or VAL")
     parser.add_argument('-savepath', type=str, help="path where to save the report to")
     args = parser.parse_args()
-    # print(args)
 
     evaluate( args.pred_file, args.ref_files_path, args.team_name, args.dataset, args.savepath)
 
-    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all dcase poetry run python evaluate/evaluation_metrics/evaluation.py -pred_file /data/eval_out.csv -ref_files_path /data/DCASE/Development_Set_annotations/Validation_Set -team_name BEATs -dataset VAL -savepath /data/.
+    # docker run -v $PWD:/app -v /data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois/:/data --gpus all beats poetry run python evaluate/evaluation_metrics/evaluation.py -pred_file /data/eval_out.csv -ref_files_path /data/DCASE/Development_Set_annotations/Validation_Set -team_name BEATs -dataset VAL -savepath /data/.

@@ -89,30 +89,25 @@ def write_wav(
         ),
     )
 
-    arr = np.pad(
-            arr, (0, len(gt_labels) - len(arr)), "constant", constant_values=(0,)
-        )
-
-
     # pad with zeros
-    #gt_labels = np.pad(
-    #    gt_labels, (0, len(gt_labels) - len(arr)), "constant", constant_values=(0,)
-    #)
-    #pred_labels = np.pad(
-    #    pred_labels, (0, len(pred_labels) - len(arr) ), "constant", constant_values=(0,)
-    #)
-    #distances_to_pos = np.pad(
-    #    distances_to_pos,
-    #    (0, len(distances_to_pos) - len(arr)),
-    #    "constant",
-    #    constant_values=(0,),
-    #)
-    #z_scores_pos = np.pad(
-    #    z_scores_pos,
-    #  (0, len(z_scores_pos) - len(arr)),
-    #    "constant",
-    #    constant_values=(0,),
-    #)
+    gt_labels = np.pad(
+        gt_labels, (0, len(gt_labels) - len(arr)), "constant", constant_values=(0,)
+    )
+    pred_labels = np.pad(
+        pred_labels, (0, len(pred_labels) - len(arr) ), "constant", constant_values=(0,)
+    )
+    distances_to_pos = np.pad(
+        distances_to_pos,
+        (0, len(distances_to_pos) - len(arr)),
+        "constant",
+        constant_values=(0,),
+    )
+    z_scores_pos = np.pad(
+        z_scores_pos,
+      (0, len(z_scores_pos) - len(arr)),
+        "constant",
+        constant_values=(0,),
+    )
 
     # Write the results
     result_wav = np.vstack(
