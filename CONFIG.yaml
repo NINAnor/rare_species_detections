@@ -12,17 +12,17 @@ data:
   n_task_val: 100
   target_fs: 16000 # used in preprocessing
   resample: true # used in preprocessing
-  denoise: true # used in preprocessing
+  denoise: False # used in preprocessing
   normalize: true # used in preprocessing
   frame_length: 25.0 # used in preprocessing
   tensor_length: 128 # used in preprocessing
-  n_shot: 5
-  n_query: 10
+  n_shot: 3 # number of images PER CLASS in the support set
+  n_query: 2 # number of images PER CLASS in the query set
   overlap: 0.5 # used in preprocessing
   n_subsample: 1 
   num_mel_bins: 128 # used in preprocessing
   max_segment_length: 1.0 # used in preprocessing
-  status: validate # used in preprocessing, train or validate or evaluate
+  status: train # used in preprocessing, train or validate or evaluate
   
 
 #################################
@@ -40,15 +40,10 @@ model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
   model_type: beats # beats, pann or baseline
-  state: None # train or validate or None if using beats or baseline // since we remove from layers from the original PANN we can't load the ckpts normally (see _build_model in prototraining.py)
-  model_path:  /data/models/BEATs/BEATs_iter3_plus_AS2M.pt 
+  state: train # train or validate - for which model should be loaded
+  model_path:  None
   specaugment_params: null
   # specaugment_params:
   #   application_ratio: 1.0
   #   time_mask: 40  
   #   freq_mask: 40 
-
-##################################################################
-# PARAMETERS FOR RUNNING THE TRAINED MODEL ON THE EVALUATION SET #
-##################################################################
-

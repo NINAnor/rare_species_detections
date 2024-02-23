@@ -12,6 +12,7 @@ fi
 
 docker run -v $BASE_FOLDER:/data -v $PWD:/app --gpus all beats poetry run prototypicalbeats/trainer.py fit \
     --config $CONFIG_PATH \
+    --model.model_type=pann \
     --trainer.default_root_dir /data/lightning_logs/PANN/ \
     --model.model_path /data/models/PANN/Cnn14_mAP=0.431.pth \
     --trainer.default_root_dir /data/lightning_logs/PANN/

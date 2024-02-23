@@ -48,7 +48,7 @@ class ProtoBEATsModel(pl.LightningModule):
         self.specaugment_params = specaugment_params 
         self.beats_path = beats_path
 
-        if model_path: 
+        if model_path != "None": 
             self.checkpoint = torch.load(model_path)
             if self.state == "validate":
                 self.adjusted_state_dict= OrderedDict()
@@ -75,6 +75,10 @@ class ProtoBEATsModel(pl.LightningModule):
             if self.state == "validate":
                 print("LOADING THE FINE-TUNED MODEL")
                 self.model.load_state_dict(self.adjusted_state_dict, strict=True)
+
+            #else: 
+            #    print("NOT LOADING ANY FINE-TUNED MODEL")
+            #    self.model = self.model
 
         if self.model_type == "beats":
             print("[MODEL] Loading the BEATs model")
@@ -114,10 +118,6 @@ class ProtoBEATsModel(pl.LightningModule):
             if self.state == "validate": 
                 print("LOADING THE FINE-TUNED MODEL")
                 self.model.load_state_dict(self.adjusted_state_dict, strict=True) 
-
-        #else:
-        #    print("[ERROR] the model specified is not included in the pipeline. Please use 'baseline', 'pann' or 'beats'")
-
 
     def euclidean_distance(self, x1, x2):
         return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))

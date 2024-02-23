@@ -275,6 +275,31 @@ def merge_preds(df, tolerence, tensor_length):
     result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
 
+def calculate_p_values(X_filtered):
+    # Calculate p-values for the filtered subset of X
+    sorted_X = np.sort(X_filtered)
+    p_values = np.searchsorted(sorted_X, X_filtered, side='right') / len(X_filtered)
+    return p_values
+
+def update_labels_for_outliers(X, Y, target_class=1, upper_threshold=0.95):
+    # Filter X and Y for the target class
+    X_filtered = X[Y == target_class]
+    indices_filtered = np.arange(len(X))[Y == target_class]  # Indices of Y == target_class in the original array
+
+    # Calculate p-values for the filtered subset of X
+    p_values_filtered = calculate_p_values(X_filtered)
+
+    # Identify outliers within the filtered subset based on p-values
+    outlier_flags = (p_values_filtered > upper_threshold)
+
+    # Map back the indices of identified outliers to the original array
+    outlier_indices = indices_filtered[outlier_flags]
+
+    # Update labels in the original Y array for identified outliers
+    Y[outlier_indices] = 0
+
+    return Y
+
 def compute(
     cfg,
     meta_df,
@@ -413,10 +438,13 @@ def compute(
             overlap=cfg["data"]["overlap"],
             pos_index=pos_index,
         )
+    
+    # Identify outliers
+    updated_labels = update_labels_for_outliers(distances_to_pos, predicted_labels)
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(
-        predicted_labels=predicted_labels,
+        predicted_labels=updated_labels,
         gt_labels=labels,
     )
     with open(

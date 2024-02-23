@@ -16,8 +16,8 @@ data:
   normalize: True # used in preprocessing
   frame_length: 25.0 # used in preprocessing
   tensor_length: 128 # used in preprocessing
-  n_shot: 2
-  n_query: 3
+  n_shot: 5
+  n_query: 10
   overlap: 0.5 # used in preprocessing
   n_subsample: 1 
   num_mel_bins: 128 # used in preprocessing
@@ -42,8 +42,8 @@ model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
   model_type: beats # beats, pann or baseline
-  state: None # train or validate if pann or None if using beats or baseline // since we remove from layers from the original PANN we can't load the ckpts normally (see _build_model in prototraining.py)
-  model_path: "/data/lightning_logs/version_0/checkpoints/epoch=24-step=2500.ckpt"
+  state: validate # train or validate - for which model should be loaded
+  model_path: None
   specaugment_params: null
   # specaugment_params:
   #   application_ratio: 1.0
@@ -54,7 +54,7 @@ model:
 # PARAMETERS FOR MODEL PREDICTION #
 ###################################
 predict:
-  wav_save: True
+  wav_save: False
   overwrite: True
   n_self_detected_supports: 0
   tolerance: 0
