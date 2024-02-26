@@ -444,7 +444,7 @@ def compute(
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(
-        predicted_labels=predicted_labels  #updated_labels,
+        predicted_labels=predicted_labels,  #updated_labels,
         gt_labels=labels,
     )
     with open(
