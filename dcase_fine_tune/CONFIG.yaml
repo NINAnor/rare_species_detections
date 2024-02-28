@@ -1,0 +1,53 @@
+###########################################
+###########################################
+##### CONFIG FOR DCASE CHALLENGE 2024 #####
+###########################################
+###########################################
+
+##################################
+# PARAMETERS FOR DATA PROCESSING #
+##################################
+data:
+  target_fs: 16000 # used in preprocessing
+  resample: True # used in preprocessing
+  denoise: True # used in preprocessing
+  normalize: True # used in preprocessing
+  frame_length: 25.0 # used in preprocessing
+  tensor_length: 128 # used in preprocessing
+  overlap: 0.5 # used in preprocessing
+  num_mel_bins: 128 # used in preprocessing
+  max_segment_length: 1.0 # used in preprocessing
+  status: validate # used in preprocessing, train or validate or evaluate
+  set_type: "Validation_Set"
+  
+
+#################################
+# PARAMETERS FOR MODEL TRAINING #
+#################################
+# Be sure the parameters match the ones in data processing
+# Otherwise the hash of the folders will be different!!
+
+trainer:
+  max_epochs: 1
+  default_root_dir: /data
+  accelerator: gpu
+  gpus: 1
+  batch_size: 4
+  num_workers: 4
+
+model:
+  lr: 1.0e-05
+  model_path: "/data/models/BEATs/BEATs_iter3_plus_AS2M.pt"
+  specaugment_params: null
+  # specaugment_params:
+  #   application_ratio: 1.0
+  #   time_mask: 40  
+  #   freq_mask: 40 
+
+###################################
+# PARAMETERS FOR MODEL PREDICTION #
+###################################
+predict:
+  wav_save: False
+  overwrite: True
+  tolerance: 0
