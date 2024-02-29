@@ -12,3 +12,4 @@ save_exples/*
 logs/*
 .vscode/
 .devcontainer/
+outputs/

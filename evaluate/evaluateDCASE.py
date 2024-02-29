@@ -158,7 +158,7 @@ def predict_labels_query(
         else:
             q_embedding = model.get_embeddings(feature, padding_mask=None)
         # Calculate beginTime and endTime for each segment
-        # We multiply by 100 to get the time in seconds
+        # We multiply by 1000 to get the time in seconds
         if i == 0:
             begin = i / 1000
             end = tensor_length * frame_shift / 1000
@@ -268,10 +268,9 @@ def write_results(predicted_labels, begins, ends):
     return df_out
 
 
-def merge_preds(df, tolerence, tensor_length):
+def merge_preds(df, tolerence, tensor_length,frame_shift):
     df["group"] = (
-        df["Starttime"] > (df["Endtime"] + tolerence * tensor_length).shift().cummax()
-    ).cumsum()
+        df["Starttime"] > (df["Endtime"] + tolerence * tensor_length * frame_shift /1000 +0.00001).shift()).cumsum()
     result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
 
@@ -479,6 +478,7 @@ def compute(
         df=result_POS,
         tolerence=cfg["tolerance"],
         tensor_length=cfg["data"]["tensor_length"],
+        frame_shift=frame_shift
     )
 
     # Add the filename
@@ -501,6 +501,127 @@ def compute(
 
 
 
+def write_wav(
+    files,
+    cfg,
+    gt_labels,
+    pred_labels,
+    distances_to_pos,
+    z_scores_pos,
+    target_fs=16000,
+    target_path=None,
+    frame_shift=1,
+    resample=True,
+    support_spectrograms=None,
+    result_merged=None
+):
+    from scipy.io import wavfile
+
+    # Some path management
+
+    filename = (
+        os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
+    )
+    # Return the final product
+    output = os.path.join(target_path, filename)
+
+    # Find the filepath for the file being analysed
+    for f in files:
+        if os.path.basename(f) == filename:
+            print(os.path.basename(f))
+            print(filename)
+            arr, fs_orig = librosa.load(f, sr=None, mono=True)
+            break
+
+    if not resample or target_fs > fs_orig:
+        target_fs = fs_orig
+
+    if resample:
+        arr = librosa.resample(arr, orig_sr=fs_orig, target_sr=target_fs)
+    # Expand the dimensions
+    gt_labels = np.repeat(
+        np.squeeze(gt_labels, axis=1).T,
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
+    )
+    pred_labels = np.repeat(
+        pred_labels.T,
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
+    )
+    distances_to_pos = np.repeat(
+        distances_to_pos.T,
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
+    )
+    z_scores_pos = np.repeat(
+        z_scores_pos.T,
+        int(
+            cfg["data"]["tensor_length"]
+            * cfg["data"]["overlap"]
+            * target_fs
+            * frame_shift
+            / 1000
+        ),
+    )
+    merged_pred =np.zeros(len(arr))
+    for  ind, row in result_merged.iterrows():
+        merged_pred[int(row["Starttime"]*target_fs):int(row["Endtime"]*target_fs)] = 1
+
+
+
+
+    # pad with zeros
+    if len(arr) > len(gt_labels):
+        gt_labels = np.pad(
+            gt_labels, (0, len(arr) - len(gt_labels)), "constant", constant_values=(0,)
+        )
+        pred_labels = np.pad(
+            pred_labels,
+            (0, len(arr) - len(pred_labels)),
+            "constant",
+            constant_values=(0,),
+        )
+        distances_to_pos = np.pad(
+            distances_to_pos,
+            (0, len(arr) - len(distances_to_pos)),
+            "constant",
+            constant_values=(0,),
+        )
+        z_scores_pos = np.pad(
+            z_scores_pos,
+            (0, len(arr) - len(z_scores_pos)),
+            "constant",
+            constant_values=(0,),
+        )
+    else:
+        arr = np.pad(
+            arr,
+            (0, len(z_scores_pos) - len(arr)),
+            "constant",
+            constant_values=(0,),
+        )
+
+    # Write the results
+    result_wav = np.vstack(
+        (arr, gt_labels, merged_pred, pred_labels , distances_to_pos / 10, z_scores_pos)
+    )
+    wavfile.write(output, target_fs, result_wav.T)
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -644,6 +765,7 @@ def main(cfg: DictConfig):
             query_spectrograms,
             query_labels,
             cfg["predict"]["n_self_detected_supports"],
+            target_path=target_path
         )
 
         results = results.append(result)
@@ -659,7 +781,9 @@ def main(cfg: DictConfig):
                 target_fs=cfg["data"]["target_fs"],
                 target_path=target_path,
                 frame_shift=meta_df.loc[filename, "frame_shift"],
-                support_spectrograms=support_spectrograms
+                support_spectrograms=support_spectrograms,
+                resample=cfg["data"]["resample"],
+                result_merged=result,
             )
 
     # Return the final product
