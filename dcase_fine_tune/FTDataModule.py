@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
 from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
 import torch
 import pandas as pd
 
@@ -50,6 +51,7 @@ class AudioDatasetDCASE(Dataset):
     def get_label_dict(self):
         return self.label_dict
 
+
 class DCASEDataModule(LightningDataModule):
     def __init__(
         self,
@@ -57,6 +59,7 @@ class DCASEDataModule(LightningDataModule):
         batch_size = 4,
         num_workers = 4,
         tensor_length = 128,
+        test_size = 0,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -64,7 +67,9 @@ class DCASEDataModule(LightningDataModule):
         self.batch_size=batch_size
         self.num_workers=num_workers
         self.tensor_length = tensor_length
+        self.test_size = test_size
         self.setup()
+        self.divide_train_val()
 
     def setup(self, stage=None):
         # load data
@@ -72,14 +77,44 @@ class DCASEDataModule(LightningDataModule):
             data_frame=self.data_frame,
         )
 
+    def divide_train_val(self):
+
+        # Separate into training and validation set
+        train_indices, validation_indices, _, _ = train_test_split(
+            range(len(self.complete_dataset)),
+            self.complete_dataset.get_labels(),
+            test_size=self.test_size,
+            random_state=42,
+        )
+
+        data_frame_train = self.data_frame.loc[train_indices]
+        data_frame_validation = self.data_frame.loc[validation_indices]
+
+        # generate subset based on indices
+        self.train_set = AudioDatasetDCASE(
+            data_frame=data_frame_train,
+        )
+        self.val_set = AudioDatasetDCASE(
+            data_frame=data_frame_validation,
+        )
+
     def train_dataloader(self):
-        train_loader = DataLoader(self.complete_dataset, 
+        train_loader = DataLoader(self.train_set, 
                                   batch_size=self.batch_size, 
                                   num_workers=self.num_workers, 
                                   pin_memory=False, 
                                   shuffle=True,
                                   collate_fn=self.collate_fn)
         return train_loader
+    
+    def val_dataloader(self):
+        val_loader = DataLoader(self.val_set, 
+                                  batch_size=self.batch_size, 
+                                  num_workers=self.num_workers, 
+                                  pin_memory=False, 
+                                  shuffle=True,
+                                  collate_fn=self.collate_fn)
+        return val_loader
 
     def get_label_dict(self):
         label_dic = self.complete_dataset.get_label_dict()
@@ -126,6 +161,7 @@ class predictLoader():
         self.complete_dataset = AudioDatasetDCASE(
             data_frame=self.data_frame,
         )
+        
 
     def pred_dataloader(self):
         pred_loader = DataLoader(self.complete_dataset, 

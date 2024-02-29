@@ -29,14 +29,15 @@ data:
 
 trainer:
   max_epochs: 500
-  default_root_dir: /data
+  default_root_dir: /data/lightning_logs/BEATs
   accelerator: gpu
   gpus: 1
-  batch_size: 4
+  batch_size: 32
   num_workers: 4
 
 model:
   lr: 1.0e-05
+  num_target_classes: 2
   model_path: "/data/models/BEATs/BEATs_iter3_plus_AS2M.pt"
   specaugment_params: null
   # specaugment_params:
