@@ -2,18 +2,17 @@ import os
 import csv
 import hashlib
 import json
-import tqdm
 import glob
 from datetime import datetime
 import shutil
 from copy import deepcopy
+from tqdm import tqdm
 
 import pytorch_lightning as pl
 import pandas as pd
 import numpy as np
 
 import torch
-from torch.utils.data import DataLoader
 
 from dcase_fine_tune.FTBeats import BEATsTransferLearningModel
 from dcase_fine_tune.FTDataModule import AudioDatasetDCASE, DCASEDataModule, predictLoader
@@ -52,7 +51,7 @@ def finetune_model(
 
     return model
 
-def predict_label(cfg, model, loader):
+def predict_label(cfg, model, loader, frame_shift):
         
     model = model.to("cuda")
     
@@ -71,14 +70,14 @@ def predict_label(cfg, model, loader):
         # We multiply by 100 to get the time in seconds
         if i == 0:
             begin = i / 1000
-            end = cfg["data"]["tensor_length"] * cfg["data"]["frame_shift"] / 1000
+            end = cfg["data"]["tensor_length"] * frame_shift / 1000
         else:
-            begin = i * cfg["data"]["tensor_length"] * cfg["data"]["frame_shift"] * cfg["data"]["overlap"] / 1000
-            end = begin + cfg["data"]["tensor_length"] * cfg["data"]["frame_shift"] / 1000
+            begin = i * cfg["data"]["tensor_length"] * frame_shift * cfg["data"]["overlap"] / 1000
+            end = begin + cfg["data"]["tensor_length"] * frame_shift / 1000
 
         # Get the scores:
         classification_scores = model.forward(feature)
-        predicted_labels = torch.max(classification_scores, 0)[1] 
+        predicted_labels = torch.argmax(classification_scores)
 
         # To numpy array
         predicted_labels = predicted_labels.detach().to("cpu").numpy()
@@ -90,8 +89,11 @@ def predict_label(cfg, model, loader):
         begins.append(begin)
         ends.append(end)
 
-        # Return
-        return pred_labels, labels, begins, ends
+    # Return
+    pred_labels = np.array(pred_labels)
+    labels = np.array(labels)
+
+    return pred_labels, labels, begins, ends
 
 def train_predict(
     cfg,
@@ -144,7 +146,10 @@ def train_predict(
                                 num_workers=cfg["trainer"]["num_workers"],
                                 tensor_length=cfg["data"]["tensor_length"]).pred_dataloader()
     
-    predicted_labels, labels, begins, ends = predict_label(cfg=cfg, model=model, loader=queryLoader)
+    predicted_labels, labels, begins, ends = predict_label(cfg=cfg, 
+                                                           model=model, 
+                                                           loader=queryLoader,
+                                                           frame_shift=frame_shift)
 
     ######################
     # COMPUTE THE SCORES #
@@ -183,7 +188,7 @@ def train_predict(
 
     result_POS_merged = merge_preds(
         df=result_POS,
-        tolerence=cfg["tolerance"],
+        tolerence=cfg["predict"]["tolerance"],
         tensor_length=cfg["data"]["tensor_length"],
     )
 

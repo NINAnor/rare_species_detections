@@ -28,7 +28,7 @@ data:
 # Otherwise the hash of the folders will be different!!
 
 trainer:
-  max_epochs: 1
+  max_epochs: 500
   default_root_dir: /data
   accelerator: gpu
   gpus: 1
@@ -50,4 +50,4 @@ model:
 predict:
   wav_save: False
   overwrite: True
-  tolerance: 0
+  tolerance: 2

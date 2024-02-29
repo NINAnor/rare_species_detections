@@ -77,6 +77,7 @@ class DCASEDataModule(LightningDataModule):
                                   batch_size=self.batch_size, 
                                   num_workers=self.num_workers, 
                                   pin_memory=False, 
+                                  shuffle=True,
                                   collate_fn=self.collate_fn)
         return train_loader
 
@@ -131,6 +132,7 @@ class predictLoader():
                                   batch_size=self.batch_size, 
                                   num_workers=self.num_workers, 
                                   pin_memory=False, 
+                                  shuffle=True,
                                   collate_fn=self.collate_fn)
         return pred_loader
 
