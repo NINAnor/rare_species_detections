@@ -4,6 +4,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 import torch
 import pandas as pd
+import numpy as np
+
+from torch.utils.data import WeightedRandomSampler
 
 
 class AudioDatasetDCASE(Dataset):
@@ -51,6 +54,30 @@ class AudioDatasetDCASE(Dataset):
     def get_label_dict(self):
         return self.label_dict
 
+class AudioDatasetDCASEV2(Dataset):
+    def __init__(
+        self,
+        data_frame,
+    ):
+        self.data_frame = data_frame
+
+    def __len__(self):
+        return len(self.data_frame)
+
+    def get_labels(self):
+        labels = []
+
+        for i in range(0, len(self.data_frame)):
+            label = self.data_frame.iloc[i]["category"]
+            labels.append(label)
+
+        return labels
+
+    def __getitem__(self, idx):
+        input_feature = torch.Tensor(self.data_frame.iloc[idx]["feature"])
+        label = self.data_frame.iloc[idx]["category"]
+
+        return input_feature, label
 
 class DCASEDataModule(LightningDataModule):
     def __init__(
@@ -60,6 +87,7 @@ class DCASEDataModule(LightningDataModule):
         num_workers = 4,
         tensor_length = 128,
         test_size = 0,
+        min_sample_per_category = 5,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -68,33 +96,58 @@ class DCASEDataModule(LightningDataModule):
         self.num_workers=num_workers
         self.tensor_length = tensor_length
         self.test_size = test_size
+        self.min_sample_per_category = min_sample_per_category
+
+        self.label_encoder = LabelEncoder()
+        self.label_encoder.fit(self.data_frame["category"])
+        self.label_dict = dict(
+            zip(
+                self.label_encoder.classes_,
+                self.label_encoder.transform(self.label_encoder.classes_),
+            )
+        )
+
         self.setup()
         self.divide_train_val()
 
     def setup(self, stage=None):
         # load data
-        self.complete_dataset = AudioDatasetDCASE(
-            data_frame=self.data_frame,
-        )
+        self.data_frame["category"] = self.label_encoder.fit_transform(self.data_frame["category"])
+        self.complete_dataset = AudioDatasetDCASEV2(data_frame=self.data_frame)
 
     def divide_train_val(self):
+
+        value_counts = self.data_frame["category"].value_counts()
+        self.num_target_classes = len(self.data_frame["category"].unique())
 
         # Separate into training and validation set
         train_indices, validation_indices, _, _ = train_test_split(
             range(len(self.complete_dataset)),
             self.complete_dataset.get_labels(),
             test_size=self.test_size,
-            random_state=42,
+            random_state=1,
+            stratify=self.data_frame["category"]
         )
 
         data_frame_train = self.data_frame.loc[train_indices]
+        data_frame_train.reset_index(drop=True, inplace=True)
+
+        # deal with class imbalance
+        value_counts = data_frame_train["category"].value_counts()
+        weight = 1. / value_counts
+        samples_weight = np.array([weight[t] for t in data_frame_train["category"]])
+        samples_weight = torch.from_numpy(samples_weight)
+        samples_weight = samples_weight.double()
+        self.sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
+
         data_frame_validation = self.data_frame.loc[validation_indices]
+        data_frame_validation.reset_index(drop=True, inplace=True)
 
         # generate subset based on indices
-        self.train_set = AudioDatasetDCASE(
+        self.train_set = AudioDatasetDCASEV2(
             data_frame=data_frame_train,
         )
-        self.val_set = AudioDatasetDCASE(
+        self.val_set = AudioDatasetDCASEV2(
             data_frame=data_frame_validation,
         )
 
@@ -103,8 +156,9 @@ class DCASEDataModule(LightningDataModule):
                                   batch_size=self.batch_size, 
                                   num_workers=self.num_workers, 
                                   pin_memory=False, 
-                                  shuffle=True,
-                                  collate_fn=self.collate_fn)
+                                  collate_fn=self.collate_fn,
+                                  sampler=self.sampler
+                                  )
         return train_loader
     
     def val_dataloader(self):
@@ -112,7 +166,6 @@ class DCASEDataModule(LightningDataModule):
                                   batch_size=self.batch_size, 
                                   num_workers=self.num_workers, 
                                   pin_memory=False, 
-                                  shuffle=True,
                                   collate_fn=self.collate_fn)
         return val_loader
 

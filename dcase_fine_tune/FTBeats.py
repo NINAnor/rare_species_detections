@@ -19,7 +19,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
         lr: float = 1e-3,
         lr_scheduler_gamma: float = 1e-1,
         model_path: str = None,
-        ft_entire_network: bool = False, # Boolean on whether the classifier layer + BEATs should be fine-tuned
+        ft_entire_network: bool = True, # Boolean on whether the classifier layer + BEATs should be fine-tuned
         **kwargs,
     ) -> None:
         """TransferLearningModel.
