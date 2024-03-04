@@ -30,7 +30,7 @@ def train_model(
         auto_select_gpus=True,
         callbacks=[
             pl.callbacks.LearningRateMonitor(logging_interval="step"),
-            pl.callbacks.EarlyStopping(monitor="val_loss", mode="min", patience=patience),
+            pl.callbacks.EarlyStopping(monitor="train_loss", mode="min", patience=patience),
         ],
         default_root_dir=root_dir,
         enable_checkpointing=True
@@ -81,16 +81,16 @@ def main(cfg: DictConfig):
                                     batch_size=cfg["trainer"]["batch_size"], 
                                     num_workers=cfg["trainer"]["num_workers"],
                                     tensor_length=cfg["data"]["tensor_length"],
-                                    test_size=0.2,
+                                    test_size=cfg["trainer"]["test_size"],
                                     min_sample_per_category=cfg["trainer"]["min_sample_per_category"])
 
     # create the model object
     num_target_classes = len(df["category"].unique())
-    print(num_target_classes)
 
     model = BEATsTransferLearningModel(model_path=cfg["model"]["model_path"],
                                        num_target_classes=num_target_classes,
-                                       lr=cfg["model"]["lr"])
+                                       lr=cfg["model"]["lr"],
+                                       ft_entire_network=cfg["model"]["ft_entire_network"])
 
     train_model(model, 
                 Loader, 

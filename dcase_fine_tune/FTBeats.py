@@ -60,7 +60,8 @@ class BEATsTransferLearningModel(pl.LightningModule):
         self.beats.load_state_dict(self.checkpoint["model"])
 
         # 2. Classifier
-        self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.cfg.predictor_class)
+        print(f"Classifier has {self.num_target_classes} output neurons")
+        self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.num_target_classes)
 
     def extract_features(self, x, padding_mask=None):
         if padding_mask != None:
@@ -81,7 +82,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # Get the logits
         x = self.fc(x)
 
-        # Mean pool the second layer
+        # Mean pool the second dimension (these are the tokens)
         x = x.mean(dim=1)
 
         return x
@@ -99,6 +100,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
         train_loss = self.loss(y_probs, y_true)
 
         # 3. Compute accuracy:
+        self.log("train_loss", train_loss, prog_bar=True)
         self.log("train_acc", self.train_acc(y_probs, y_true), prog_bar=True)
 
         return train_loss

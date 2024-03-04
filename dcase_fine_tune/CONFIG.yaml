@@ -36,9 +36,11 @@ trainer:
   num_workers: 4
   patience: 20
   min_sample_per_category: 10
+  test_size: 0.2
 
 model:
   lr: 1.0e-05
+  ft_entire_network: True
   num_target_classes: 2
   model_path: "/data/models/BEATs/BEATs_iter3_plus_AS2M.pt"
   specaugment_params: null

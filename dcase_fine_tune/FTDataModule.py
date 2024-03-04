@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.model_selection import train_test_split
 import torch
 import pandas as pd
@@ -8,53 +8,7 @@ import numpy as np
 
 from torch.utils.data import WeightedRandomSampler
 
-
-class AudioDatasetDCASE(Dataset):
-    def __init__(
-        self,
-        data_frame,
-        label_dict=None,
-    ):
-        self.data_frame = data_frame
-        self.label_encoder = LabelEncoder()
-        if label_dict is not None:
-            self.label_encoder.fit(list(label_dict.keys()))
-            self.label_dict = label_dict
-        else:
-            self.label_encoder.fit(self.data_frame["category"])
-            self.label_dict = dict(
-                zip(
-                    self.label_encoder.classes_,
-                    self.label_encoder.transform(self.label_encoder.classes_),
-                )
-            )
-
-    def __len__(self):
-        return len(self.data_frame)
-
-    def get_labels(self):
-        labels = []
-
-        for i in range(0, len(self.data_frame)):
-            label = self.data_frame.iloc[i]["category"]
-            label = self.label_encoder.transform([label])[0]
-            labels.append(label)
-
-        return labels
-
-    def __getitem__(self, idx):
-        input_feature = torch.Tensor(self.data_frame.iloc[idx]["feature"])
-        label = self.data_frame.iloc[idx]["category"]
-
-        # Encode label as integer
-        label = self.label_encoder.transform([label])[0]
-
-        return input_feature, label
-
-    def get_label_dict(self):
-        return self.label_dict
-
-class AudioDatasetDCASEV2(Dataset):
+class TrainAudioDatasetDCASE(Dataset):
     def __init__(
         self,
         data_frame,
@@ -98,27 +52,15 @@ class DCASEDataModule(LightningDataModule):
         self.test_size = test_size
         self.min_sample_per_category = min_sample_per_category
 
-        self.label_encoder = LabelEncoder()
-        self.label_encoder.fit(self.data_frame["category"])
-        self.label_dict = dict(
-            zip(
-                self.label_encoder.classes_,
-                self.label_encoder.transform(self.label_encoder.classes_),
-            )
-        )
-
         self.setup()
         self.divide_train_val()
 
     def setup(self, stage=None):
         # load data
-        self.data_frame["category"] = self.label_encoder.fit_transform(self.data_frame["category"])
-        self.complete_dataset = AudioDatasetDCASEV2(data_frame=self.data_frame)
+        self.data_frame["category"] = LabelEncoder().fit_transform(self.data_frame["category"])
+        self.complete_dataset = TrainAudioDatasetDCASE(data_frame=self.data_frame)
 
     def divide_train_val(self):
-
-        value_counts = self.data_frame["category"].value_counts()
-        self.num_target_classes = len(self.data_frame["category"].unique())
 
         # Separate into training and validation set
         train_indices, validation_indices, _, _ = train_test_split(
@@ -132,7 +74,7 @@ class DCASEDataModule(LightningDataModule):
         data_frame_train = self.data_frame.loc[train_indices]
         data_frame_train.reset_index(drop=True, inplace=True)
 
-        # deal with class imbalance
+        # deal with class imbalance in the training set
         value_counts = data_frame_train["category"].value_counts()
         weight = 1. / value_counts
         samples_weight = np.array([weight[t] for t in data_frame_train["category"]])
@@ -140,14 +82,15 @@ class DCASEDataModule(LightningDataModule):
         samples_weight = samples_weight.double()
         self.sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
 
+        # Make the validation set
         data_frame_validation = self.data_frame.loc[validation_indices]
         data_frame_validation.reset_index(drop=True, inplace=True)
 
         # generate subset based on indices
-        self.train_set = AudioDatasetDCASEV2(
+        self.train_set = TrainAudioDatasetDCASE(
             data_frame=data_frame_train,
         )
-        self.val_set = AudioDatasetDCASEV2(
+        self.val_set = TrainAudioDatasetDCASE(
             data_frame=data_frame_validation,
         )
 
@@ -195,6 +138,53 @@ class DCASEDataModule(LightningDataModule):
         return (all_images, all_labels)
     
     
+
+
+class AudioDatasetDCASE(Dataset):
+    def __init__(
+        self,
+        data_frame,
+        label_dict=None,
+    ):
+        self.data_frame = data_frame
+        self.label_encoder = LabelEncoder()
+        if label_dict is not None:
+            self.label_encoder.fit(list(label_dict.keys()))
+            self.label_dict = label_dict
+        else:
+            self.label_encoder.fit(self.data_frame["category"])
+            self.label_dict = dict(
+                zip(
+                    self.label_encoder.classes_,
+                    self.label_encoder.transform(self.label_encoder.classes_),
+                )
+            )
+
+    def __len__(self):
+        return len(self.data_frame)
+
+    def get_labels(self):
+        labels = []
+
+        for i in range(0, len(self.data_frame)):
+            label = self.data_frame.iloc[i]["category"]
+            label = self.label_encoder.transform([label])[0]
+            labels.append(label)
+
+        return labels
+
+    def __getitem__(self, idx):
+        input_feature = torch.Tensor(self.data_frame.iloc[idx]["feature"])
+        label = self.data_frame.iloc[idx]["category"]
+
+        # Encode label as integer
+        label = self.label_encoder.transform([label])[0]
+
+        return input_feature, label
+
+    def get_label_dict(self):
+        return self.label_dict
+
 class predictLoader():
     def __init__(
         self,
