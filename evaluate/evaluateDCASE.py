@@ -12,7 +12,6 @@ import librosa
 from yaml import FullLoader
 import csv
 import shutil
-from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 from datetime import datetime
 import torch
 from torch.utils.data import DataLoader
@@ -27,277 +26,15 @@ import pytorch_lightning as pl
 
 from callbacks.callbacks import MilestonesFinetuning
 
+from statsmodels.distributions.empirical_distribution import ECDF
+
 from evaluate._utils_writing import write_wav, write_results
+from evaluate._utils_compute import (to_dataframe, get_proto_coordinates, calculate_distance, 
+                                     compute_scores, merge_preds, reshape_support, training, 
+                                     predict_labels_query)
 
-
-def to_dataframe(features, labels):
-    # Load the saved array and map the features and labels into a single dataframe
-    input_features = np.load(features)
-    labels = np.load(labels)
-    list_input_features = [input_features[key] for key in input_features.files]
-    df = pd.DataFrame({"feature": list_input_features, "category": labels})
-
-    return df
-
-
-def train_model(
-    model_type=None,
-    datamodule_class=DCASEDataModule,
-    max_epochs=1,
-    enable_model_summary=False,
-    num_sanity_val_steps=0,
-    seed=42,
-    pretrained_model=None,
-    state=None,
-    beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt"
-):
-    # create the lightning trainer object
-    trainer = pl.Trainer(
-        max_epochs=10,
-        enable_model_summary=enable_model_summary,
-        num_sanity_val_steps=num_sanity_val_steps,
-        deterministic=True,
-        gpus=1,
-        auto_select_gpus=True,
-        callbacks=[
-            pl.callbacks.LearningRateMonitor(logging_interval="step"),
-            pl.callbacks.EarlyStopping(
-                monitor="train_acc", mode="max", patience=max_epochs
-            ),
-        ],
-        default_root_dir="logs/",
-        enable_checkpointing=False
-    )
-
-    # create the model object
-    model = ProtoBEATsModel(model_type=model_type, 
-                            state=state, 
-                            model_path=pretrained_model)
-
-    # train the model
-    trainer.fit(model, datamodule=datamodule_class)
-
-    return model
-
-
-def training(model_type, pretrained_model, state, custom_datamodule, max_epoch, beats_path):
-
-    model = train_model(
-        model_type,
-        custom_datamodule,
-        max_epochs=max_epoch,
-        enable_model_summary=False,
-        num_sanity_val_steps=0,
-        seed=42,
-        pretrained_model=pretrained_model,
-        state=state,
-        beats_path=beats_path
-    )
-
-    return model
-
-
-def get_proto_coordinates(model, model_type, support_data, support_labels, n_way):
-
-    if model_type == "beats":
-        z_supports, _ = model.get_embeddings(support_data, padding_mask=None)
-    else:
-        z_supports = model.get_embeddings(support_data, padding_mask=None)
-
-    # Get the coordinates of the NEG and POS prototypes
-    prototypes = model.get_prototypes(
-        z_support=z_supports, support_labels=support_labels, n_way=n_way
-    )
-
-    # Return the coordinates of the prototypes and the z_supports
-    return prototypes, z_supports
-
-
-def predict_labels_query(
-    model,
-    model_type,
-    z_supports,
-    queryloader,
-    prototypes,
-    tensor_length,
-    frame_shift,
-    overlap,
-    pos_index,
-):
-    """
-    - l_segment to know the length of the segment
-    - offset is the position of the end of the last support sample
-    """
-
-    model = model.to("cuda")
-    prototypes = prototypes.to("cuda")
-
-    # Get POS prototype
-    POS_prototype = prototypes[pos_index].to("cuda")
-    d_supports_to_POS_prototypes, _ = calculate_distance(
-        model_type, z_supports.to("cuda"), POS_prototype
-    )
-    mean_dist_supports = d_supports_to_POS_prototypes.mean(0)
-    std_dist_supports = d_supports_to_POS_prototypes.std(0)
-
-    # Get the embeddings, the beginning and end of the segment!
-    pred_labels = []
-    labels = []
-    begins = []
-    ends = []
-    d_to_pos = []
-    z_score_pos = []
-
-    for i, data in enumerate(tqdm(queryloader)):
-        # Get the embeddings for the query
-        feature, label = data
-        feature = feature.to("cuda")
-
-        if model_type == "beats":
-            q_embedding, _ = model.get_embeddings(feature, padding_mask=None)
-        else:
-            q_embedding = model.get_embeddings(feature, padding_mask=None)
-        # Calculate beginTime and endTime for each segment
-        # We multiply by 1000 to get the time in seconds
-        if i == 0:
-            begin = i / 1000
-            end = tensor_length * frame_shift / 1000
-        else:
-            begin = i * tensor_length * frame_shift * overlap / 1000
-            end = begin + tensor_length * frame_shift / 1000
-
-        # Get the scores:
-        classification_scores, dists = calculate_distance(model_type, q_embedding, prototypes)
-
-        if model_type != "beats":
-            dists = dists.squeeze()
-            classification_scores = classification_scores.squeeze()
-
-        # Get the z_score:
-        z_score = compute_z_scores(
-            dists[pos_index],
-            mean_dist_supports, 
-            std_dist_supports
-        )
-
-        # Get the labels (either POS or NEG):
-        predicted_labels = torch.max(classification_scores, 0)[
-            1
-        ]  # The dim where the distance to prototype is stored is 1
-
-        # To numpy array
-        distance_to_pos = classification_scores[pos_index].detach().to("cpu").numpy()
-        predicted_labels = predicted_labels.detach().to("cpu").numpy()
-        label = label.detach().to("cpu").numpy()
-        z_score = z_score.detach().to("cpu").numpy()
-
-        # Return the labels, begin and end of the detection
-        pred_labels.append(predicted_labels)
-        labels.append(label)
-        begins.append(begin)
-        ends.append(end)
-        d_to_pos.append(distance_to_pos)
-        z_score_pos.append(z_score)
-
-    p_values = convert_z_to_p(z_score_pos)
-
-    pred_labels = np.array(pred_labels)
-    labels = np.array(labels)
-    d_to_pos = np.array(d_to_pos)
-    p_values = np.array(p_values)
-
-    return pred_labels, labels, begins, ends, d_to_pos, p_values
-
-
-def compute_z_scores(distance, mean_support, sd_support):
-    z_score = (distance - mean_support) / sd_support
-    return z_score
-
-
-def convert_z_to_p(z_score):
-    import scipy.stats as stats
-
-    p_value = 1 - stats.norm.cdf(z_score)
-    return p_value
-
-
-def euclidean_distance(x1, x2):
-    return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))
-
-
-def calculate_distance(model_type, z_query, z_proto):
-    # Compute the euclidean distance from queries to prototypes
-    dists = []
-    for q in z_query:
-        q_dists = euclidean_distance(q.unsqueeze(0), z_proto)
-        dists.append(
-            q_dists.unsqueeze(0)
-        )  # Contrary to prototraining I need to add a dimension to store the
-    dists = torch.cat(dists, dim=0)
-
-    if model_type == "beats":
-        # We drop the last dimension without changing the gradients
-        dists = dists.mean(dim=2).squeeze()
-
-    scores = -dists
-
-    return scores, dists
-
-
-def compute_scores(predicted_labels, gt_labels):
-    acc = accuracy_score(gt_labels, predicted_labels)
-    recall = recall_score(gt_labels, predicted_labels)
-    f1score = f1_score(gt_labels, predicted_labels)
-    precision = precision_score(gt_labels, predicted_labels)
-    print(f"Accurracy: {acc}")
-    print(f"Recall: {recall}")
-    print(f"precision: {precision}")
-    print(f"F1 score: {f1score}")
-    return acc, recall, precision, f1score
-
-
-def write_results(predicted_labels, begins, ends):
-    df_out = pd.DataFrame(
-        {
-            "Starttime": begins,
-            "Endtime": ends,
-            "PredLabels": predicted_labels,
-        }
-    )
-
-    return df_out
-
-
-def merge_preds(df, tolerence, tensor_length,frame_shift):
-    df["group"] = (
-        df["Starttime"] > (df["Endtime"] + tolerence * tensor_length * frame_shift /1000 +0.00001).shift()).cumsum()
-    result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
-    return result
-
-def calculate_p_values(X_filtered):
-    # Calculate p-values for the filtered subset of X
-    sorted_X = np.sort(X_filtered)
-    p_values = np.searchsorted(sorted_X, X_filtered, side='right') / len(X_filtered)
-    return p_values
-
-def update_labels_for_outliers(X, Y, target_class=1, upper_threshold=0.95):
-    # Filter X and Y for the target class
-    X_filtered = X[Y == target_class]
-    indices_filtered = np.arange(len(X))[Y == target_class]  # Indices of Y == target_class in the original array
-
-    # Calculate p-values for the filtered subset of X
-    p_values_filtered = calculate_p_values(X_filtered)
-
-    # Identify outliers within the filtered subset based on p-values
-    outlier_flags = (p_values_filtered > upper_threshold)
-
-    # Map back the indices of identified outliers to the original array
-    outlier_indices = indices_filtered[outlier_flags]
-
-    # Update labels in the original Y array for identified outliers
-    Y[outlier_indices] = 0
-
-    return Y
+import hydra
+from omegaconf import DictConfig, OmegaConf
 
 def compute(
     cfg,
@@ -319,6 +56,7 @@ def compute(
     assert filename in query_labels
 
     df_support = to_dataframe(support_spectrograms, support_labels)
+    
     custom_dcasedatamodule = DCASEDataModule(
         data_frame=df_support,
         tensor_length=cfg["data"]["tensor_length"],
@@ -347,6 +85,27 @@ def compute(
     s, sl, _, _, ways = a
     prototypes, z_supports = get_proto_coordinates(model, model_type, s, sl, n_way=len(ways))
 
+    #################################################
+    ### GET THE DISTRIBUTION OF THE POS DISTANCES ###
+    #################################################
+    print("GETTING THE DISTRIBUTION OF THE POS SUPPORT SAMPLES")
+    support_samples_pos = df_support[df_support["category"] == "POS"]["feature"].to_numpy()
+    support_samples_pos = reshape_support(support_samples_pos, tensor_length=cfg["data"]["tensor_length"])
+    z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None)
+
+    _, d_supports_to_POS_prototypes = calculate_distance(
+        model_type, z_pos_supports, prototypes[pos_index]
+    )
+    print(f"DISTANCE TO POS = {d_supports_to_POS_prototypes}")
+    ecdf = ECDF(d_supports_to_POS_prototypes.detach().numpy())
+
+    ######################################
+    # GET EMBEDDINGS FOR THE NEG SAMPLES #
+    ######################################
+    support_samples_neg = df_support[df_support["category"] == "NEG"]["feature"].to_numpy()
+    support_samples_neg = reshape_support(support_samples_neg, tensor_length=cfg["data"]["tensor_length"])
+    z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
+
     ### Get the query dataset ###
     df_query = to_dataframe(query_spectrograms, query_labels)
     queryLoader = AudioDatasetDCASE(df_query, label_dict=label_dic)
@@ -363,7 +122,7 @@ def compute(
         begins,
         ends,
         distances_to_pos,
-        z_score_pos,
+        q_embeddings
     ) = predict_labels_query(
         model,
         model_type,
@@ -425,7 +184,7 @@ def compute(
             begins,
             ends,
             distances_to_pos,
-            z_score_pos,
+            q_embeddings
         ) = predict_labels_query(
             model,
             model_type,
@@ -438,8 +197,26 @@ def compute(
             pos_index=pos_index,
         )
     
-    # Identify outliers
-    updated_labels = update_labels_for_outliers(distances_to_pos, predicted_labels)
+
+    ################################################
+    # PLOT PROTOTYPES AND EMBEDDINGS IN A 2D SPACE #
+    ################################################
+    #prototypes=prototypes.to_numpy()
+    #z_pos_supports = z_pos_supports.to_numpy()
+    #z_neg_supports = z_neg_supports.to_numpy()
+    #q_embeddings = q_embeddings.to_numpy()
+    #gt_labels = labels
+    #other_labels = np.concatenate(([0,1], np.repeat(1, z_pos_supports.shape(0)), np.repeat(0, z_neg_supports.shape(0))), axis=None)
+
+    #f = np.concatenate([q_embeddings, prototypes, z_pos_supports, z_neg_supports])
+
+    #representation = np.concatenate(np.array(list(features)), axis=0)
+    #tsne = TSNE(n_components=2, perplexity=perplexity)
+
+
+
+    # GET THE PVALUES
+    p_values_pos = 1 - ecdf(distances_to_pos)
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(
@@ -468,7 +245,7 @@ def compute(
     df_result_raw["distance"] = distances_to_pos
     df_result_raw["gt_labels"] = labels
     df_result_raw["filename"] = filename
-    df_result_raw["z_score"] = z_score_pos
+    df_result_raw["p_values"] = p_values_pos
     # Filter only the POS results
     result_POS = df_result[df_result["PredLabels"] == "POS"].drop(
         ["PredLabels"], axis=1
@@ -495,136 +272,11 @@ def compute(
         predicted_labels,
         labels,
         distances_to_pos,
-        z_score_pos,
+        p_values_pos,
         df_result_raw,
     )
 
 
-
-def write_wav(
-    files,
-    cfg,
-    gt_labels,
-    pred_labels,
-    distances_to_pos,
-    z_scores_pos,
-    target_fs=16000,
-    target_path=None,
-    frame_shift=1,
-    resample=True,
-    support_spectrograms=None,
-    result_merged=None
-):
-    from scipy.io import wavfile
-
-    # Some path management
-
-    filename = (
-        os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".wav"
-    )
-    # Return the final product
-    output = os.path.join(target_path, filename)
-
-    # Find the filepath for the file being analysed
-    for f in files:
-        if os.path.basename(f) == filename:
-            print(os.path.basename(f))
-            print(filename)
-            arr, fs_orig = librosa.load(f, sr=None, mono=True)
-            break
-
-    if not resample or target_fs > fs_orig:
-        target_fs = fs_orig
-
-    if resample:
-        arr = librosa.resample(arr, orig_sr=fs_orig, target_sr=target_fs)
-    # Expand the dimensions
-    gt_labels = np.repeat(
-        np.squeeze(gt_labels, axis=1).T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-    pred_labels = np.repeat(
-        pred_labels.T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-    distances_to_pos = np.repeat(
-        distances_to_pos.T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-    z_scores_pos = np.repeat(
-        z_scores_pos.T,
-        int(
-            cfg["data"]["tensor_length"]
-            * cfg["data"]["overlap"]
-            * target_fs
-            * frame_shift
-            / 1000
-        ),
-    )
-    merged_pred =np.zeros(len(arr))
-    for  ind, row in result_merged.iterrows():
-        merged_pred[int(row["Starttime"]*target_fs):int(row["Endtime"]*target_fs)] = 1
-
-
-
-
-    # pad with zeros
-    if len(arr) > len(gt_labels):
-        gt_labels = np.pad(
-            gt_labels, (0, len(arr) - len(gt_labels)), "constant", constant_values=(0,)
-        )
-        pred_labels = np.pad(
-            pred_labels,
-            (0, len(arr) - len(pred_labels)),
-            "constant",
-            constant_values=(0,),
-        )
-        distances_to_pos = np.pad(
-            distances_to_pos,
-            (0, len(arr) - len(distances_to_pos)),
-            "constant",
-            constant_values=(0,),
-        )
-        z_scores_pos = np.pad(
-            z_scores_pos,
-            (0, len(arr) - len(z_scores_pos)),
-            "constant",
-            constant_values=(0,),
-        )
-    else:
-        arr = np.pad(
-            arr,
-            (0, len(z_scores_pos) - len(arr)),
-            "constant",
-            constant_values=(0,),
-        )
-
-    # Write the results
-    result_wav = np.vstack(
-        (arr, gt_labels, merged_pred, pred_labels , distances_to_pos / 10, z_scores_pos)
-    )
-    wavfile.write(output, target_fs, result_wav.T)
-
-import hydra
-from omegaconf import DictConfig, OmegaConf
 @hydra.main(version_base=None, config_path="/app/", config_name="CONFIG_PREDICT.yaml")
 def main(cfg: DictConfig):
     
