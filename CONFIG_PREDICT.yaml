@@ -59,6 +59,8 @@ predict:
   n_self_detected_supports: 0
   tolerance: 0
   filter_by_p_values: True
+  n_subsample: 5
 
 plot:
   tsne: False
+  perplexity: 5
