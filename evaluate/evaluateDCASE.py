@@ -26,7 +26,7 @@ from callbacks.callbacks import MilestonesFinetuning
 
 from statsmodels.distributions.empirical_distribution import ECDF
 
-from evaluate._utils_writing import write_wav, write_results
+from evaluate._utils_writing import write_wav, write_results, plot_2_d_representation
 from evaluate._utils_compute import (to_dataframe, get_proto_coordinates, calculate_distance, 
                                      compute_scores, merge_preds, reshape_support, training, 
                                      predict_labels_query, filter_outliers_by_p_values)
@@ -88,12 +88,13 @@ def compute(
     #################################################
     print("GETTING THE DISTRIBUTION OF THE POS SUPPORT SAMPLES")
     support_samples_pos = df_support[df_support["category"] == "POS"]["feature"].to_numpy()
-    support_samples_pos = reshape_support(support_samples_pos, tensor_length=cfg["data"]["tensor_length"])
+    support_samples_pos = reshape_support(support_samples_pos, 
+                                          tensor_length=cfg["data"]["tensor_length"], 
+                                          n_subsample=cfg["predict"]["n_subsample"])
     z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None)
 
     _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports, prototypes[pos_index])
 
-    print(f"DISTANCE TO POS = {d_supports_to_POS_prototypes}")
     ecdf = ECDF(d_supports_to_POS_prototypes.detach().numpy())
 
     ######################################
@@ -134,7 +135,36 @@ def compute(
         pos_index=pos_index,
     )
 
+    # GET THE PVALUES
+    p_values_pos = 1 - ecdf(distances_to_pos)
+
+    if cfg["predict"]["filter_by_p_values"]:
+        predicted_labels = filter_outliers_by_p_values(predicted_labels, p_values_pos, target_class=1, upper_threshold=0.05)
+
     if n_self_detected_supports > 0:
+        #######################
+        # NEW SELF_SUPERVISED #
+        #######################
+
+        # Take all the queries with a pvalue of 1
+
+
+        # Get some random samples with pvalue of 0
+
+
+        # update custom_dcasedatamodule
+        custom_dcasedatamodule = DCASEDataModule(
+            data_frame=df_support_extended,
+            tensor_length=cfg["data"]["tensor_length"],
+            n_shot=3 + n_self_detected_supports,
+            n_query=2,
+            n_subsample=cfg["data"]["n_subsample"],
+        )
+
+
+        #######################
+        # OLD SELF SUPERVISED #
+        #######################
         # find n best predictions
         n_best_ind = np.argpartition(distances_to_pos, -n_self_detected_supports)[
             -n_self_detected_supports:
@@ -154,6 +184,11 @@ def compute(
         df_support_extended = df_support_extended.append(
             df_extension_neg, ignore_index=True
         )
+
+        ##########################
+        # KEEP THIS UPDATE PART! #
+        ##########################
+
         # update custom_dcasedatamodule
         custom_dcasedatamodule = DCASEDataModule(
             data_frame=df_support_extended,
@@ -201,63 +236,14 @@ def compute(
     # PLOT PROTOTYPES AND EMBEDDINGS IN A 2D SPACE #
     ################################################
     if cfg["plot"]["tsne"]:
-
-        import numpy as np
-        import matplotlib.pyplot as plt
-        from sklearn.manifold import TSNE
-
-        # Assuming `prototypes`, `z_pos_supports`, `z_neg_supports`, `q_embeddings`, and `labels` are already defined
-        # Convert tensors to numpy arrays if they are in tensor format
-        # e.g., z_pos_supports = z_pos_supports.detach().numpy()
-
-        # Create a labels array for all points
-        # Label for prototypes, positive supports, negative supports, and query embeddings respectively
-        prototypes_labels = np.array([2] * prototypes.shape[0])  # Assuming 2 is not used in `gt_labels`
-        pos_supports_labels = np.array([3] * z_pos_supports.shape[0])  # Assuming 3 is not used in `gt_labels`
-        neg_supports_labels = np.array([4] * z_neg_supports.shape[0])  # Assuming 4 is not used in `gt_labels`
-        q_embeddings = q_embeddings.detach().numpy()
-        gt_labels = labels.detach().numpy()
-
-        # Concatenate everything into one dataset
-        feat = np.concatenate([prototypes, z_pos_supports, z_neg_supports, q_embeddings])
-        all_labels = np.concatenate([prototypes_labels, pos_supports_labels, neg_supports_labels, gt_labels])
-
-        # Run t-SNE
-        tsne = TSNE(n_components=2, perplexity=30)
-        features_2d = tsne.fit_transform(feat)
-
-        # Plot
-        plt.figure(figsize=(10, 8))
-        # Define marker for each type of point
-        markers = {2: "P", 3: "o", 4: "X"}  # P for prototypes, o for supports, X for negative supports
-
-        for label in np.unique(all_labels):
-            # Plot each class with its own color and marker
-            idx = np.where(all_labels == label)
-            if label in markers:  # Prototypes or supports
-                plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=1.0, marker=markers[label], s=100)  # Larger size
-            else:  # Query embeddings
-                plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=0.5, s=50)  # Smaller size, more transparent
-
-        plt.legend()
-        plt.title('t-SNE visualization of embeddings, prototypes, and supports')
-        plt.xlabel('Dimension 1')
-        plt.ylabel('Dimension 2')
-        plt.grid(True)
-
         fig_name = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".png"
         output = os.path.join(target_path, fig_name)
-
-        # Save the figure
-        plt.savefig(output, bbox_inches="tight")
-        plt.show()
-
-
-    # GET THE PVALUES
-    p_values_pos = 1 - ecdf(distances_to_pos)
-
-    if cfg["predict"]["filter_by_p_values"]:
-        predicted_labels = filter_outliers_by_p_values(predicted_labels, p_values_pos, target_class=1, upper_threshold=0.05)
+        plot_2_d_representation(prototypes, 
+                                z_pos_supports, 
+                                z_neg_supports, 
+                                q_embeddings,
+                                labels,
+                                output)
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(

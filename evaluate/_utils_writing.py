@@ -136,7 +136,12 @@ def write_wav(
     )
     wavfile.write(output, target_fs, result_wav.T)
 
-def plot_2_d_representation():
+def plot_2_d_representation(prototypes,
+                            z_pos_supports,
+                            z_neg_supports,
+                            q_embeddings,
+                            labels,
+                            output):
         import numpy as np
         import matplotlib.pyplot as plt
         from sklearn.manifold import TSNE
@@ -179,9 +184,6 @@ def plot_2_d_representation():
         plt.xlabel('Dimension 1')
         plt.ylabel('Dimension 2')
         plt.grid(True)
-
-        fig_name = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".png"
-        output = os.path.join(target_path, fig_name)
 
         # Save the figure
         plt.savefig(output, bbox_inches="tight")
