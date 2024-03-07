@@ -25,10 +25,12 @@ jsonargparse = {version = "4.17.0", extras = ["signatures"]}
 black = "^23.1.0"
 noisereduce = "^2.0.1"
 mir-eval = "0.6"
-numpy = "1.19.5"
+numpy = "1.22.3"
 torchlibrosa = "^0.1.0"
 hydra-core = "^1.3.2"
 omegaconf = "^2.3.0"
+torchsampler = "^0.1.2"
+statsmodels = "^0.14.1"
 
 [tool.poetry.dev-dependencies]
 
