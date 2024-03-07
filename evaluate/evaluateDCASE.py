@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
 import numpy as np
 import pandas as pd
 import glob
@@ -20,7 +19,6 @@ from tqdm import tqdm
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
-from data_utils.audiolist import AudioList
 
 import pytorch_lightning as pl
 
@@ -31,7 +29,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 from evaluate._utils_writing import write_wav, write_results
 from evaluate._utils_compute import (to_dataframe, get_proto_coordinates, calculate_distance, 
                                      compute_scores, merge_preds, reshape_support, training, 
-                                     predict_labels_query)
+                                     predict_labels_query, filter_outliers_by_p_values)
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -93,9 +91,8 @@ def compute(
     support_samples_pos = reshape_support(support_samples_pos, tensor_length=cfg["data"]["tensor_length"])
     z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None)
 
-    _, d_supports_to_POS_prototypes = calculate_distance(
-        model_type, z_pos_supports, prototypes[pos_index]
-    )
+    _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports, prototypes[pos_index])
+
     print(f"DISTANCE TO POS = {d_supports_to_POS_prototypes}")
     ecdf = ECDF(d_supports_to_POS_prototypes.detach().numpy())
 
@@ -201,22 +198,81 @@ def compute(
     ################################################
     # PLOT PROTOTYPES AND EMBEDDINGS IN A 2D SPACE #
     ################################################
-    #prototypes=prototypes.to_numpy()
-    #z_pos_supports = z_pos_supports.to_numpy()
-    #z_neg_supports = z_neg_supports.to_numpy()
-    #q_embeddings = q_embeddings.to_numpy()
-    #gt_labels = labels
-    #other_labels = np.concatenate(([0,1], np.repeat(1, z_pos_supports.shape(0)), np.repeat(0, z_neg_supports.shape(0))), axis=None)
+    if cfg["plot"]["tsne"]:
 
-    #f = np.concatenate([q_embeddings, prototypes, z_pos_supports, z_neg_supports])
+        from sklearn.manifold import TSNE
+        import seaborn as sns
 
-    #representation = np.concatenate(np.array(list(features)), axis=0)
-    #tsne = TSNE(n_components=2, perplexity=perplexity)
+        prototypes=prototypes.detach().numpy()
+        z_pos_supports = z_pos_supports.detach().numpy()
+        z_neg_supports = z_neg_supports.detach().numpy()
+        q_embeddings = q_embeddings.detach().numpy()
+        gt_labels = labels
+        other_labels = np.concatenate(([0,1], np.repeat(1, z_pos_supports.shape(0)), np.repeat(0, z_neg_supports.shape(0))), axis=None)
 
+        feat = np.concatenate([q_embeddings, prototypes, z_pos_supports, z_neg_supports])
+        tsne = TSNE(n_components=2, perplexity=5)
+        features_2d = tsne.fit_transform(feat)
+
+        # Do the figure!
+        fig = sns.scatterplot(x=features_2d[:, 0], y=features_2d[:, 1], hue=labels)
+        sns.move_legend(fig, "upper left", bbox_to_anchor=(1, 1))
+
+        fig_name = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".png"
+        output = os.path.join(target_path, fig_name)
+        fig.get_figure().savefig(output, bbox_inches="tight")
+
+        import numpy as np
+        import matplotlib.pyplot as plt
+        from sklearn.manifold import TSNE
+
+        # Assuming `prototypes`, `z_pos_supports`, `z_neg_supports`, `q_embeddings`, and `labels` are already defined
+        # Convert tensors to numpy arrays if they are in tensor format
+        # e.g., z_pos_supports = z_pos_supports.detach().numpy()
+
+        # Create a labels array for all points
+        # Label for prototypes, positive supports, negative supports, and query embeddings respectively
+        prototypes_labels = np.array([2] * prototypes.shape[0])  # Assuming 2 is not used in `gt_labels`
+        pos_supports_labels = np.array([3] * z_pos_supports.shape[0])  # Assuming 3 is not used in `gt_labels`
+        neg_supports_labels = np.array([4] * z_neg_supports.shape[0])  # Assuming 4 is not used in `gt_labels`
+
+        # Concatenate everything into one dataset
+        feat = np.concatenate([prototypes, z_pos_supports, z_neg_supports, q_embeddings])
+        all_labels = np.concatenate([prototypes_labels, pos_supports_labels, neg_supports_labels, gt_labels])
+
+        # Run t-SNE
+        tsne = TSNE(n_components=2, perplexity=30)
+        features_2d = tsne.fit_transform(feat)
+
+        # Plot
+        plt.figure(figsize=(10, 8))
+        # Define marker for each type of point
+        markers = {2: "P", 3: "o", 4: "X"}  # P for prototypes, o for supports, X for negative supports
+
+        for label in np.unique(all_labels):
+            # Plot each class with its own color and marker
+            idx = np.where(all_labels == label)
+            if label in markers:  # Prototypes or supports
+                plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=1.0, marker=markers[label], s=100)  # Larger size
+            else:  # Query embeddings
+                plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=0.5, s=50)  # Smaller size, more transparent
+
+        plt.legend()
+        plt.title('t-SNE visualization of embeddings, prototypes, and supports')
+        plt.xlabel('Dimension 1')
+        plt.ylabel('Dimension 2')
+        plt.grid(True)
+
+        # Save the figure
+        plt.savefig(output, bbox_inches="tight")
+        plt.show()
 
 
     # GET THE PVALUES
     p_values_pos = 1 - ecdf(distances_to_pos)
+
+    if cfg["predict"]["filter_by_p_values"]:
+        predicted_labels = filter_outliers_by_p_values(predicted_labels, p_values_pos, target_class=1, upper_threshold=0.05)
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(

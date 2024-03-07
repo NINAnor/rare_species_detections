@@ -16,8 +16,8 @@ data:
   normalize: True # used in preprocessing
   frame_length: 25.0 # used in preprocessing
   tensor_length: 128 # used in preprocessing
-  n_shot: 5
-  n_query: 10
+  n_shot: 3
+  n_query: 2
   overlap: 0.5 # used in preprocessing
   n_subsample: 1 
   num_mel_bins: 128 # used in preprocessing
@@ -54,7 +54,11 @@ model:
 # PARAMETERS FOR MODEL PREDICTION #
 ###################################
 predict:
-  wav_save: False
+  wav_save: True
   overwrite: True
   n_self_detected_supports: 0
   tolerance: 0
+  filter_by_p_values: True
+
+plot:
+  tsne: False

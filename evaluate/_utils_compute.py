@@ -216,21 +216,11 @@ def predict_labels_query(
 
     return pred_labels, labels, begins, ends, d_to_pos, q_embeddings
 
-def update_labels_for_outliers(X, Y, target_class=1, upper_threshold=0.95):
-    # Filter X and Y for the target class
-    X_filtered = X[Y == target_class]
-    indices_filtered = np.arange(len(X))[Y == target_class]  # Indices of Y == target_class in the original array
+def filter_outliers_by_p_values(Y, p_values, target_class=1, upper_threshold=0.05):
+    # Identify indices where the p-value is less than the threshold and the corresponding Y value equals the target_class
+    outlier_indices = np.where((p_values < upper_threshold) & (Y == target_class))[0]
 
-    # Calculate p-values for the filtered subset of X
-    p_values_filtered = calculate_p_values(X_filtered)
-
-    # Identify outliers within the filtered subset based on p-values
-    outlier_flags = (p_values_filtered > upper_threshold)
-
-    # Map back the indices of identified outliers to the original array
-    outlier_indices = indices_filtered[outlier_flags]
-
-    # Update labels in the original Y array for identified outliers
+    # Update labels in the original Y array for identified indices
     Y[outlier_indices] = 0
 
     return Y
