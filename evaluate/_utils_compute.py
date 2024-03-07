@@ -71,16 +71,16 @@ def merge_preds(df, tolerence, tensor_length,frame_shift):
     result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
 
-def reshape_support(support_samples, tensor_length=128):
+def reshape_support(support_samples, tensor_length=128, n_subsample=1):
     new_input = []
     for x in support_samples:
-        #for _ in range(n_subsample):
-        if x.shape[1] > tensor_length:
-            rand_start = torch.randint(0, x.shape[1] - tensor_length, (1,))
-            new_x = torch.tensor(x[:, rand_start : rand_start + tensor_length])
-            new_input.append(new_x.unsqueeze(0))
-        else:
-            new_input.append(torch.tensor(x))
+        for _ in range(n_subsample):
+            if x.shape[1] > tensor_length:
+                rand_start = torch.randint(0, x.shape[1] - tensor_length, (1,))
+                new_x = torch.tensor(x[:, rand_start : rand_start + tensor_length])
+                new_input.append(new_x.unsqueeze(0))
+            else:
+                new_input.append(torch.tensor(x))
     all_supports = torch.cat([x for x in new_input])
     return(all_supports)
 

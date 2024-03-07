@@ -100,7 +100,9 @@ def compute(
     # GET EMBEDDINGS FOR THE NEG SAMPLES #
     ######################################
     support_samples_neg = df_support[df_support["category"] == "NEG"]["feature"].to_numpy()
-    support_samples_neg = reshape_support(support_samples_neg, tensor_length=cfg["data"]["tensor_length"])
+    support_samples_neg = reshape_support(support_samples_neg, 
+                                          tensor_length=cfg["data"]["tensor_length"], 
+                                          n_subsample=cfg["predict"]["n_subsample"])
     z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
 
     ### Get the query dataset ###
@@ -200,28 +202,6 @@ def compute(
     ################################################
     if cfg["plot"]["tsne"]:
 
-        from sklearn.manifold import TSNE
-        import seaborn as sns
-
-        prototypes=prototypes.detach().numpy()
-        z_pos_supports = z_pos_supports.detach().numpy()
-        z_neg_supports = z_neg_supports.detach().numpy()
-        q_embeddings = q_embeddings.detach().numpy()
-        gt_labels = labels
-        other_labels = np.concatenate(([0,1], np.repeat(1, z_pos_supports.shape(0)), np.repeat(0, z_neg_supports.shape(0))), axis=None)
-
-        feat = np.concatenate([q_embeddings, prototypes, z_pos_supports, z_neg_supports])
-        tsne = TSNE(n_components=2, perplexity=5)
-        features_2d = tsne.fit_transform(feat)
-
-        # Do the figure!
-        fig = sns.scatterplot(x=features_2d[:, 0], y=features_2d[:, 1], hue=labels)
-        sns.move_legend(fig, "upper left", bbox_to_anchor=(1, 1))
-
-        fig_name = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".png"
-        output = os.path.join(target_path, fig_name)
-        fig.get_figure().savefig(output, bbox_inches="tight")
-
         import numpy as np
         import matplotlib.pyplot as plt
         from sklearn.manifold import TSNE
@@ -235,6 +215,8 @@ def compute(
         prototypes_labels = np.array([2] * prototypes.shape[0])  # Assuming 2 is not used in `gt_labels`
         pos_supports_labels = np.array([3] * z_pos_supports.shape[0])  # Assuming 3 is not used in `gt_labels`
         neg_supports_labels = np.array([4] * z_neg_supports.shape[0])  # Assuming 4 is not used in `gt_labels`
+        q_embeddings = q_embeddings.detach().numpy()
+        gt_labels = labels.detach().numpy()
 
         # Concatenate everything into one dataset
         feat = np.concatenate([prototypes, z_pos_supports, z_neg_supports, q_embeddings])
@@ -262,6 +244,9 @@ def compute(
         plt.xlabel('Dimension 1')
         plt.ylabel('Dimension 2')
         plt.grid(True)
+
+        fig_name = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".png"
+        output = os.path.join(target_path, fig_name)
 
         # Save the figure
         plt.savefig(output, bbox_inches="tight")
