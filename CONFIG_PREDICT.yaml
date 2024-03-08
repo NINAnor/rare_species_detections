@@ -33,7 +33,7 @@ data:
 # Otherwise the hash of the folders will be different!!
 
 trainer:
-  max_epochs: 5
+  max_epochs: 1
   default_root_dir: /data
   accelerator: gpu
   gpus: 1
@@ -59,7 +59,8 @@ predict:
   n_self_detected_supports: 0
   tolerance: 0
   filter_by_p_values: True
-  n_subsample: 5
+  n_subsample: 1
+  self_detect_support: True
 
 plot:
   tsne: False
