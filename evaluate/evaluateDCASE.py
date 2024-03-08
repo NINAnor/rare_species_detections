@@ -270,6 +270,7 @@ def compute(
     # PLOT PROTOTYPES AND EMBEDDINGS IN A 2D SPACE #
     ################################################
     if cfg["plot"]["tsne"]:
+        print("[INFO] CREATING A FIGURE")
         fig_name = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".png"
         output = os.path.join(target_path, fig_name)
         plot_2_d_representation(prototypes, 
@@ -277,7 +278,8 @@ def compute(
                                 z_neg_supports, 
                                 q_embeddings,
                                 labels,
-                                output)
+                                output,
+                                cfg["plot"]["perplexity"])
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(

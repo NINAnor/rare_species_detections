@@ -96,9 +96,6 @@ def write_wav(
     for  ind, row in result_merged.iterrows():
         merged_pred[int(row["Starttime"]*target_fs):int(row["Endtime"]*target_fs)] = 1
 
-
-
-
     # pad with zeros
     if len(arr) > len(gt_labels):
         gt_labels = np.pad(
@@ -141,41 +138,63 @@ def plot_2_d_representation(prototypes,
                             z_neg_supports,
                             q_embeddings,
                             labels,
-                            output):
+                            output,
+                            perplexity=5):
+    
     import matplotlib.pyplot as plt
     from sklearn.manifold import TSNE
 
     # Create a labels array for all points
     # Label for prototypes, positive supports, negative supports, and query embeddings respectively
-    prototypes_labels = np.array([2] * prototypes.shape[0])  # Assuming 2 is not used in `gt_labels`
-    pos_supports_labels = np.array([3] * z_pos_supports.shape[0])  # Assuming 3 is not used in `gt_labels`
-    neg_supports_labels = np.array([4] * z_neg_supports.shape[0])  # Assuming 4 is not used in `gt_labels`
-    q_embeddings = q_embeddings.detach().numpy()
-    gt_labels = labels.detach().numpy()
+    prototypes_labels = np.array([2] * prototypes.shape[0]) 
+    pos_supports_labels = np.array([3] * z_pos_supports.shape[0]) 
+    neg_supports_labels = np.array([4] * z_neg_supports.shape[0]) 
+    q_embeddings = q_embeddings.to("cpu").detach().numpy()
+    gt_labels = np.squeeze(labels) # already a numpy object
 
     # Concatenate everything into one dataset
     feat = np.concatenate([prototypes.to("cpu").detach().numpy(), 
                            z_pos_supports.to("cpu").detach().numpy(), 
                            z_neg_supports.to("cpu").detach().numpy(), 
-                           q_embeddings.to("cpu").detach().numpy()])
-    all_labels = np.concatenate([prototypes_labels, pos_supports_labels, neg_supports_labels, gt_labels])
+                           q_embeddings])
+    feat = feat[:, -1, :]
+
+    all_labels = np.concatenate([prototypes_labels, 
+                                 pos_supports_labels, 
+                                 neg_supports_labels, 
+                                 gt_labels])
 
     # Run t-SNE
-    tsne = TSNE(n_components=2, perplexity=30)
+    tsne = TSNE(n_components=2, perplexity=perplexity)
     features_2d = tsne.fit_transform(feat)
 
-    # Plot
+    # Define the mapping from numerical labels to descriptive labels
+    label_descriptions = {
+        0: "NEG queries",
+        1: "POS queries",
+        2: "Prototypes",
+        3: "POS supports",
+        4: "NEG supports"
+    }
+
+    # Figure
     plt.figure(figsize=(10, 8))
+
     # Define marker for each type of point
     markers = {2: "P", 3: "o", 4: "X"}  # P for prototypes, o for supports, X for negative supports
 
     for label in np.unique(all_labels):
-        # Plot each class with its own color and marker
         idx = np.where(all_labels == label)
-        if label in markers:  # Prototypes or supports
-            plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=1.0, marker=markers[label], s=100)  # Larger size
-        else:  # Query embeddings
-            plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=0.5, s=50)  # Smaller size, more transparent
+        # Set a larger size for prototypes
+        size = 150 if label == 2 else 100 if label in markers else 50
+        alpha = 1.0 if label == 2 else 0.8 if label in markers else 0.25
+
+        plt.scatter(features_2d[idx, 0], 
+                    features_2d[idx, 1], 
+                    label=label_descriptions[label], 
+                    alpha=alpha, 
+                    marker=markers.get(label, 'o'), 
+                    s=size)
 
     plt.legend()
     plt.title('t-SNE visualization of embeddings, prototypes, and supports')
