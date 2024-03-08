@@ -73,16 +73,21 @@ def merge_preds(df, tolerence, tensor_length,frame_shift):
 
 def reshape_support(support_samples, tensor_length=128, n_subsample=1):
     new_input = []
+
     for x in support_samples:
         for _ in range(n_subsample):
             if x.shape[1] > tensor_length:
                 rand_start = torch.randint(0, x.shape[1] - tensor_length, (1,))
                 new_x = torch.tensor(x[:, rand_start : rand_start + tensor_length])
-                new_input.append(new_x.unsqueeze(0))
+                new_input.append(new_x.unsqueeze(0))  # Ensure the first dimension is 1
             else:
-                new_input.append(torch.tensor(x))
-    all_supports = torch.cat([x for x in new_input])
-    return(all_supports)
+                # Ensure the first dimension is 1 if not already
+                x = torch.tensor(x)
+                x_adjusted = x if x.shape[0] == 1 else x.unsqueeze(0)
+                new_input.append(x_adjusted)
+        
+    all_supports = torch.cat(new_input)  # Concatenate all tensors in the list
+    return all_supports
 
 def train_model(
     model_type=None,
@@ -97,7 +102,7 @@ def train_model(
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
-        max_epochs=10,
+        max_epochs=1,
         enable_model_summary=enable_model_summary,
         num_sanity_val_steps=num_sanity_val_steps,
         deterministic=True,

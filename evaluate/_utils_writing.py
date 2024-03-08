@@ -142,49 +142,47 @@ def plot_2_d_representation(prototypes,
                             q_embeddings,
                             labels,
                             output):
-        import numpy as np
-        import matplotlib.pyplot as plt
-        from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+    from sklearn.manifold import TSNE
 
-        # Assuming `prototypes`, `z_pos_supports`, `z_neg_supports`, `q_embeddings`, and `labels` are already defined
-        # Convert tensors to numpy arrays if they are in tensor format
-        # e.g., z_pos_supports = z_pos_supports.detach().numpy()
+    # Create a labels array for all points
+    # Label for prototypes, positive supports, negative supports, and query embeddings respectively
+    prototypes_labels = np.array([2] * prototypes.shape[0])  # Assuming 2 is not used in `gt_labels`
+    pos_supports_labels = np.array([3] * z_pos_supports.shape[0])  # Assuming 3 is not used in `gt_labels`
+    neg_supports_labels = np.array([4] * z_neg_supports.shape[0])  # Assuming 4 is not used in `gt_labels`
+    q_embeddings = q_embeddings.detach().numpy()
+    gt_labels = labels.detach().numpy()
 
-        # Create a labels array for all points
-        # Label for prototypes, positive supports, negative supports, and query embeddings respectively
-        prototypes_labels = np.array([2] * prototypes.shape[0])  # Assuming 2 is not used in `gt_labels`
-        pos_supports_labels = np.array([3] * z_pos_supports.shape[0])  # Assuming 3 is not used in `gt_labels`
-        neg_supports_labels = np.array([4] * z_neg_supports.shape[0])  # Assuming 4 is not used in `gt_labels`
-        q_embeddings = q_embeddings.detach().numpy()
-        gt_labels = labels.detach().numpy()
+    # Concatenate everything into one dataset
+    feat = np.concatenate([prototypes.to("cpu").detach().numpy(), 
+                           z_pos_supports.to("cpu").detach().numpy(), 
+                           z_neg_supports.to("cpu").detach().numpy(), 
+                           q_embeddings.to("cpu").detach().numpy()])
+    all_labels = np.concatenate([prototypes_labels, pos_supports_labels, neg_supports_labels, gt_labels])
 
-        # Concatenate everything into one dataset
-        feat = np.concatenate([prototypes, z_pos_supports, z_neg_supports, q_embeddings])
-        all_labels = np.concatenate([prototypes_labels, pos_supports_labels, neg_supports_labels, gt_labels])
+    # Run t-SNE
+    tsne = TSNE(n_components=2, perplexity=30)
+    features_2d = tsne.fit_transform(feat)
 
-        # Run t-SNE
-        tsne = TSNE(n_components=2, perplexity=30)
-        features_2d = tsne.fit_transform(feat)
+    # Plot
+    plt.figure(figsize=(10, 8))
+    # Define marker for each type of point
+    markers = {2: "P", 3: "o", 4: "X"}  # P for prototypes, o for supports, X for negative supports
 
-        # Plot
-        plt.figure(figsize=(10, 8))
-        # Define marker for each type of point
-        markers = {2: "P", 3: "o", 4: "X"}  # P for prototypes, o for supports, X for negative supports
+    for label in np.unique(all_labels):
+        # Plot each class with its own color and marker
+        idx = np.where(all_labels == label)
+        if label in markers:  # Prototypes or supports
+            plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=1.0, marker=markers[label], s=100)  # Larger size
+        else:  # Query embeddings
+            plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=0.5, s=50)  # Smaller size, more transparent
 
-        for label in np.unique(all_labels):
-            # Plot each class with its own color and marker
-            idx = np.where(all_labels == label)
-            if label in markers:  # Prototypes or supports
-                plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=1.0, marker=markers[label], s=100)  # Larger size
-            else:  # Query embeddings
-                plt.scatter(features_2d[idx, 0], features_2d[idx, 1], label=label, alpha=0.5, s=50)  # Smaller size, more transparent
+    plt.legend()
+    plt.title('t-SNE visualization of embeddings, prototypes, and supports')
+    plt.xlabel('Dimension 1')
+    plt.ylabel('Dimension 2')
+    plt.grid(True)
 
-        plt.legend()
-        plt.title('t-SNE visualization of embeddings, prototypes, and supports')
-        plt.xlabel('Dimension 1')
-        plt.ylabel('Dimension 2')
-        plt.grid(True)
-
-        # Save the figure
-        plt.savefig(output, bbox_inches="tight")
-        plt.show()
+    # Save the figure
+    plt.savefig(output, bbox_inches="tight")
+    plt.show()
