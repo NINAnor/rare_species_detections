@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import pytorch_lightning as pl
 import torch
 
 from tqdm import tqdm
@@ -8,6 +7,10 @@ from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_sc
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
+
+import pytorch_lightning as pl
+from pl.utilities.seed import seed_everything
+seed_everything(42, workers=True)
 
 def to_dataframe(features, labels):
     # Load the saved array and map the features and labels into a single dataframe
@@ -92,7 +95,7 @@ def reshape_support(support_samples, tensor_length=128, n_subsample=1):
 def train_model(
     model_type=None,
     datamodule_class=DCASEDataModule,
-    max_epochs=1,
+    max_epochs=5,
     enable_model_summary=False,
     num_sanity_val_steps=0,
     seed=42,
@@ -102,7 +105,7 @@ def train_model(
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
-        max_epochs=1,
+        max_epochs=max_epochs,
         enable_model_summary=enable_model_summary,
         num_sanity_val_steps=num_sanity_val_steps,
         deterministic=True,
