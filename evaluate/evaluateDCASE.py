@@ -21,7 +21,7 @@ from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
 
 import pytorch_lightning as pl
-pl.utilities.seed.seed_everything.seed_everything(42, workers=True)
+pl.utilities.seed.seed_everything(42, workers=True)
 
 from callbacks.callbacks import MilestonesFinetuning
 
@@ -161,23 +161,23 @@ def compute(
         df_extension_pos = df_query.iloc[detected_pos_indices].copy()
         df_extension_pos["category"] = "POS"
 
-        # Detect NEG samples
-        detected_neg_indices = np.where(p_values_pos == 0)[0]
+        # # Detect NEG samples
+        # detected_neg_indices = np.where(p_values_pos == 0)[0]
 
-        # Randomly sample NEG samples to match the number of POS samples
-        num_pos_samples = len(detected_pos_indices)
+        # # Randomly sample NEG samples to match the number of POS samples
+        # num_pos_samples = len(detected_pos_indices)
 
-        if num_pos_samples > 0 and len(detected_neg_indices) > num_pos_samples:
-            sampled_neg_indices = np.random.choice(detected_neg_indices, size=num_pos_samples, replace=False)
-        else:
-            sampled_neg_indices = detected_neg_indices
+        # if num_pos_samples > 0 and len(detected_neg_indices) > num_pos_samples:
+        #     sampled_neg_indices = np.random.choice(detected_neg_indices, size=num_pos_samples, replace=False)
+        # else:
+        #     sampled_neg_indices = detected_neg_indices
 
-        df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
-        df_extension_neg["category"] = "NEG"
+        # df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
+        # df_extension_neg["category"] = "NEG"
 
         # Append both POS and NEG samples to the support set
-        df_support_extended = df_support.append([df_extension_pos, df_extension_neg], ignore_index=True)
-
+        # df_support_extended = df_support.append([df_extension_pos, df_extension_neg], ignore_index=True)
+        df_support_extended = df_support.append([df_extension_pos], ignore_index=True)
         ########################
         # RECALCULATE THE ECDF #
         ########################
