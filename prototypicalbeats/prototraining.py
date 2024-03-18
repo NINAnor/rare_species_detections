@@ -19,7 +19,7 @@ from Models.pann import Cnn14
 class ProtoBEATsModel(pl.LightningModule):
     def __init__(
         self,
-        n_way: int = 5,
+        n_way: int = 20,
         milestones: int = 5,
         lr: float = 1e-5,
         lr_scheduler_gamma: float = 1e-1,

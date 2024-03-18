@@ -1,6 +1,7 @@
 #!/bin/bash
 
-BASE_FOLDER=$1
+#BASE_FOLDER=$1
+BASE_FOLDER=/home/benjamin.cretois/data/DCASE 
 CONFIG_PATH="/app/CONFIG.yaml"
 
 cd ..

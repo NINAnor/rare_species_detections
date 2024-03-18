@@ -3,7 +3,7 @@ from torch.optim.optimizer import Optimizer
 from pytorch_lightning.callbacks.finetuning import BaseFinetuning
 
 class MilestonesFinetuning(BaseFinetuning):
-    def __init__(self, milestones: int = 10):
+    def __init__(self, milestones: int = 1):
         super().__init__()
         self.unfreeze_at_epoch = milestones
 

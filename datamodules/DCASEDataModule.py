@@ -99,7 +99,7 @@ class DCASEDataModule(LightningDataModule):
         set_type: str = "Training_Set",
         n_shot: int = 5,
         n_query: int = 10,
-        n_way: int = 5,
+        n_way: int = 20,
         n_subsample: int = 1,
         overlap: float = 0.5,
         num_mel_bins: int = 128,

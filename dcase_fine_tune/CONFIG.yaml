@@ -17,8 +17,8 @@ data:
   overlap: 0.5 # used in preprocessing
   num_mel_bins: 128 # used in preprocessing
   max_segment_length: 1.0 # used in preprocessing
-  status: validate # used in preprocessing, train or validate or evaluate
-  set_type: "Validation_Set"
+  status: train # used in preprocessing, train or validate or evaluate
+  set_type: "Training_Set"
   
 
 #################################
@@ -29,12 +29,12 @@ data:
 
 trainer:
   max_epochs: 10000
-  default_root_dir: /data/lightning_logs/BEATs
+  default_root_dir: /data/lightning_logs/baseline
   accelerator: gpu
   gpus: 1
   batch_size: 64
   num_workers: 4
-  patience: 20
+  patience: 10
   min_sample_per_category: 10
   test_size: 0.2
 

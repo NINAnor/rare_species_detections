@@ -8,16 +8,17 @@
 # PARAMETERS FOR DATA PROCESSING #
 ##################################
 data:
-  n_task_train: 100
-  n_task_val: 100
+  n_task_train: 500
+  n_task_val: 500
   target_fs: 16000 # used in preprocessing
-  resample: true # used in preprocessing
-  denoise: False # used in preprocessing
+  resample: True # used in preprocessing
+  denoise: True # used in preprocessing
   normalize: true # used in preprocessing
   frame_length: 25.0 # used in preprocessing
   tensor_length: 128 # used in preprocessing
   n_shot: 3 # number of images PER CLASS in the support set
   n_query: 2 # number of images PER CLASS in the query set
+  n_way: 20
   overlap: 0.5 # used in preprocessing
   n_subsample: 1 
   num_mel_bins: 128 # used in preprocessing
@@ -41,8 +42,9 @@ model:
   lr: 1.0e-05
   model_type: beats # beats, pann or baseline
   state: train # train or validate - for which model should be loaded
-  model_path:  None
+  model_path:  /data/DCASE/models/BEATs/BEATs_iter3_plus_AS2M.pt
   specaugment_params: null
+  n_way: 20
   # specaugment_params:
   #   application_ratio: 1.0
   #   time_mask: 40  

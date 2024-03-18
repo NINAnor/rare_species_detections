@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 
 from torch.utils.data import WeightedRandomSampler
+from torchsampler import ImbalancedDatasetSampler
 
 class TrainAudioDatasetDCASE(Dataset):
     def __init__(
@@ -80,11 +81,14 @@ class DCASEDataModule(LightningDataModule):
         samples_weight = np.array([weight[t] for t in data_frame_train["category"]])
         samples_weight = torch.from_numpy(samples_weight)
         samples_weight = samples_weight.double()
-        self.sampler = WeightedRandomSampler(samples_weight, len(samples_weight))
+        self.sampler = WeightedRandomSampler(samples_weight, len(samples_weight)*10)
 
         # Make the validation set
         data_frame_validation = self.data_frame.loc[validation_indices]
         data_frame_validation.reset_index(drop=True, inplace=True)
+
+        #print(data_frame_train["category"].value_counts())
+        #print(data_frame_validation["category"].value_counts())
 
         # generate subset based on indices
         self.train_set = TrainAudioDatasetDCASE(
@@ -100,7 +104,7 @@ class DCASEDataModule(LightningDataModule):
                                   num_workers=self.num_workers, 
                                   pin_memory=False, 
                                   collate_fn=self.collate_fn,
-                                  sampler=self.sampler
+                                  sampler=ImbalancedDatasetSampler(self.train_set)       #self.sampler
                                   )
         return train_loader
     

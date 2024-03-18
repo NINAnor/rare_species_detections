@@ -42,7 +42,7 @@ model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
   model_type: beats # beats, pann or baseline
-  state: validate # train or validate - for which model should be loaded
+  state: train # train or validate - for which model should be loaded
   model_path: None
   specaugment_params: null
   # specaugment_params:
@@ -54,11 +54,11 @@ model:
 # PARAMETERS FOR MODEL PREDICTION #
 ###################################
 predict:
-  wav_save: True
+  wav_save: False
   overwrite: True
   n_self_detected_supports: 0
   tolerance: 0
-  filter_by_p_values: True # Whether we filter outliers by their pvalues
+  filter_by_p_values: False # Whether we filter outliers by their pvalues
   n_subsample: 1 # Whether each segment should be subsampled
   self_detect_support: False # Whether to use the self-training loop
 
