@@ -9,7 +9,6 @@ from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
 
 import pytorch_lightning as pl
-pl.utilities.seed.seed_everything(42, workers=True)
 
 def to_dataframe(features, labels):
     # Load the saved array and map the features and labels into a single dataframe
