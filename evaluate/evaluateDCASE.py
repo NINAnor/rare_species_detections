@@ -21,7 +21,7 @@ from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
 
 import pytorch_lightning as pl
-pl.utilities.seed.seed_everything(0, workers=True)
+#pl.utilities.seed.seed_everything(0, workers=True)
 
 from callbacks.callbacks import MilestonesFinetuning
 
