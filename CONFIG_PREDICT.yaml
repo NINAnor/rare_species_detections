@@ -61,7 +61,7 @@ predict:
   filter_by_p_values: False # Whether we filter outliers by their pvalues
   n_subsample: 1 # Whether each segment should be subsampled
   self_detect_support: True # Whether to use the self-training loop
-  threshold_p_value: 0.2
+  threshold_p_value: 0.1
 
 plot:
   tsne: True

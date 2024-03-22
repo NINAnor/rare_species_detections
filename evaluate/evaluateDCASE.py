@@ -285,6 +285,12 @@ def compute(
     # Get the updated pvalues
     p_values_pos = 1 - ecdf(distances_to_pos)
 
+    # Filter by pvalues
+    predicted_labels = filter_outliers_by_p_values(predicted_labels, 
+                                                   p_values_pos, 
+                                                   target_class=1, 
+                                                   upper_threshold=cfg["predict"]["threshold_p_value"])
+
     ################################################
     # PLOT PROTOTYPES AND EMBEDDINGS IN A 2D SPACE #
     ################################################
