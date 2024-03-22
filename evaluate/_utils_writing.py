@@ -139,6 +139,7 @@ def plot_2_d_representation(prototypes,
                             q_embeddings,
                             labels,
                             output,
+                            model_type, 
                             perplexity=5):
     
     import matplotlib.pyplot as plt
@@ -157,7 +158,8 @@ def plot_2_d_representation(prototypes,
                            z_pos_supports.to("cpu").detach().numpy(), 
                            z_neg_supports.to("cpu").detach().numpy(), 
                            q_embeddings])
-    feat = feat[:, -1, :]
+    if model_type == "beats":
+        feat = feat[:, -1, :]
 
     all_labels = np.concatenate([prototypes_labels, 
                                  pos_supports_labels, 

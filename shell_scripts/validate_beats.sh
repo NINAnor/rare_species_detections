@@ -1,11 +1,9 @@
 #!/bin/bash
 
-#BASE_DIR=$1
-BASE_DIR=/home/benjamin.cretois/data/DCASE #/data/Prosjekter3/823001_19_metodesats_analyse_23_36_cretois
+# Set the base directory
+BASE_DIR=/home/benjamin.cretois/data/DCASE
 
-cd ..
-
-docker run -v $BASE_DIR:/data -v $PWD:/app \
+exec docker run -v $BASE_DIR:/data -v $PWD/..:/app \
             --gpus all \
             --shm-size=10gb \
             beats \

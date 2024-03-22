@@ -40,9 +40,9 @@ trainer:
 model:
   distance: euclidean # other option is mahalanobis
   lr: 1.0e-05
-  model_type: beats # beats, pann or baseline
+  model_type: baseline # beats, pann or baseline
   state: train # train or validate - for which model should be loaded
-  model_path:  /data/DCASE/models/BEATs/BEATs_iter3_plus_AS2M.pt
+  model_path:  None #/data/DCASE/models/BEATs/BEATs_iter3_plus_AS2M.pt
   specaugment_params: null
   n_way: 20
   # specaugment_params:

@@ -273,7 +273,7 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
 
 if __name__ == "__main__":
 
-    all_files = glob.glob("/data/DCASEfewshot/validate/d8f698b184e75c3ef4e830f9da4f148071fb4c56/results/beats/models/**/eval_out.csv", 
+    all_files = glob.glob("/data/DCASEfewshot/validate/d8f698b184e75c3ef4e830f9da4f148071fb4c56/results/beats/models/BEATS_SELF_LEARNING_PTHR=02/**/eval_out.csv", 
                           recursive=True)
     
     l_fscores = []

@@ -20,7 +20,7 @@ class MyLightningCLI(LightningCLI):
                 "trainer.callbacks": [
                     EarlyStopping(
                         monitor="val_loss",  
-                        patience=15, 
+                        patience=5, 
                         verbose=True,
                         mode="min"  
                 ),

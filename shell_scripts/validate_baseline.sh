@@ -1,6 +1,7 @@
 #!/bin/bash
 
-BASE_DIR=$1
+# Set the base directory
+BASE_DIR=/home/benjamin.cretois/data/DCASE
 
 cd ..
 
@@ -10,4 +11,4 @@ docker run -v $BASE_DIR:/data -v $PWD:/app \
             poetry run python /app/evaluate/evaluateDCASE.py \
             'model.model_type="baseline"' \
             'model.state="validate"' \
-            'model.model_path="/data/lightning_logs/BASELINE/lightning_logs/version_1/checkpoints/epoch=50-step=5100.ckpt"'
+            'model.model_path="/data/lightning_logs/BASELINE/lightning_logs/version_0/checkpoints/epoch=59-step=30000.ckpt"'

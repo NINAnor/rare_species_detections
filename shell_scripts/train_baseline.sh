@@ -1,7 +1,7 @@
 #!/bin/bash
 cd ..
 
-BASE_FOLDER=$1
+BASE_FOLDER=/home/benjamin.cretois/data/DCASE
 CONFIG_PATH="/app/CONFIG.yaml"
 
 # Check if BASE_FOLDER is not set or empty

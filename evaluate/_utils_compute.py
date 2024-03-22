@@ -112,7 +112,7 @@ def train_model(
         callbacks=[
             pl.callbacks.LearningRateMonitor(logging_interval="step"),
             pl.callbacks.EarlyStopping(
-                monitor="train_acc", mode="max", patience=max_epochs
+                monitor="train_acc", mode="max", patience=3
             ),
         ],
         default_root_dir="logs/",

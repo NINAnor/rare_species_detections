@@ -33,7 +33,7 @@ data:
 # Otherwise the hash of the folders will be different!!
 
 trainer:
-  max_epochs: 5
+  max_epochs: 20
   default_root_dir: /data
   accelerator: gpu
   gpus: 1
@@ -60,7 +60,8 @@ predict:
   tolerance: 0
   filter_by_p_values: False # Whether we filter outliers by their pvalues
   n_subsample: 1 # Whether each segment should be subsampled
-  self_detect_support: False # Whether to use the self-training loop
+  self_detect_support: True # Whether to use the self-training loop
+  threshold_p_value: 0.2
 
 plot:
   tsne: True

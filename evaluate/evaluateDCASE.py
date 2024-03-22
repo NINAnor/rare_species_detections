@@ -92,9 +92,14 @@ def compute(
     support_samples_pos = reshape_support(support_samples_pos, 
                                           tensor_length=cfg["data"]["tensor_length"], 
                                           n_subsample=cfg["predict"]["n_subsample"])
-    z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None)
-
-    _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports, prototypes[pos_index])
+    
+    if cfg["model"]["model_type"] == "beats":
+        z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None)
+        _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports, prototypes[pos_index])
+    else:
+        z_pos_supports = model.get_embeddings(support_samples_pos, padding_mask=None)
+        _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports, prototypes[pos_index])
+        d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
 
     ecdf = ECDF(d_supports_to_POS_prototypes.detach().numpy())
 
@@ -105,7 +110,13 @@ def compute(
     support_samples_neg = reshape_support(support_samples_neg, 
                                           tensor_length=cfg["data"]["tensor_length"], 
                                           n_subsample=cfg["predict"]["n_subsample"])
-    z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
+    
+    #z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
+
+    if cfg["model"]["model_type"] == "beats":
+        z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
+    else:
+        z_neg_supports = model.get_embeddings(support_samples_neg, padding_mask=None)
 
     ### Get the query dataset ###
     df_query = to_dataframe(query_spectrograms, query_labels)
@@ -152,7 +163,7 @@ def compute(
         #########################################################
 
         # Detect POS samples
-        detected_pos_indices = np.where(p_values_pos == 1)[0]
+        detected_pos_indices = np.where(p_values_pos == cfg["predict"]["threshold_p_value"])[0]
         print(f"[INFO] SELF DETECTED {detected_pos_indices} POS SAMPLES")
 
         # BECAUSE CUDA ERROR WHEN RESAMPLING TOO MANY SAMPLES
@@ -171,7 +182,6 @@ def compute(
             df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
             df_extension_neg["category"] = "NEG"
         else:
-            print(df_neg)
             df_extension_neg = df_neg
 
         # Append both POS and NEG samples to the support set
@@ -187,9 +197,13 @@ def compute(
                                             tensor_length=cfg["data"]["tensor_length"], 
                                             n_subsample=cfg["predict"]["n_subsample"])
 
-        z_pos_supports, _ = model.get_embeddings(support_samples_pos.to("cuda"), padding_mask=None)
-
-        _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda"))
+        if cfg["model"]["model_type"] == "beats":
+            z_pos_supports, _ = model.get_embeddings(support_samples_pos.to("cuda"), padding_mask=None)
+            _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda"))
+        else:
+            z_pos_supports = model.get_embeddings(support_samples_pos.to("cuda"), padding_mask=None)
+            _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda"))
+            d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
 
         ecdf = ECDF(d_supports_to_POS_prototypes.to("cpu").detach().numpy())
 
@@ -284,6 +298,7 @@ def compute(
                                 q_embeddings,
                                 labels,
                                 output,
+                                cfg["model"]["model_type"],
                                 cfg["plot"]["perplexity"])
 
     # Compute the scores for the analysed file -- just as information
