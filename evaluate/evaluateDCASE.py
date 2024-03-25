@@ -150,12 +150,6 @@ def compute(
     # GET THE PVALUES
     p_values_pos = 1 - ecdf(distances_to_pos)
 
-    if cfg["predict"]["filter_by_p_values"]:
-        predicted_labels = filter_outliers_by_p_values(predicted_labels, 
-                                                       p_values_pos, 
-                                                       target_class=1, 
-                                                       upper_threshold=0.05)
-
     if cfg["predict"]["self_detect_support"]:
         print("[INFO] SELF DETECTING SUPPORT SAMPLES")
         #########################################################
@@ -163,8 +157,8 @@ def compute(
         #########################################################
 
         # Detect POS samples
-        detected_pos_indices = np.where(p_values_pos == cfg["predict"]["threshold_p_value"])[0]
-        print(f"[INFO] SELF DETECTED {detected_pos_indices} POS SAMPLES")
+        detected_pos_indices = np.where(p_values_pos == 1)[0] # We need to be sure that it is POS samples
+        print(f"[INFO] SELF DETECTED {len(detected_pos_indices)} POS SAMPLES")
 
         # BECAUSE CUDA ERROR WHEN RESAMPLING TOO MANY SAMPLES
         if len(detected_pos_indices) > 40:
@@ -286,10 +280,11 @@ def compute(
     p_values_pos = 1 - ecdf(distances_to_pos)
 
     # Filter by pvalues
-    predicted_labels = filter_outliers_by_p_values(predicted_labels, 
-                                                   p_values_pos, 
-                                                   target_class=1, 
-                                                   upper_threshold=cfg["predict"]["threshold_p_value"])
+    if cfg["predict"]["filter_by_p_value"]:
+        predicted_labels = filter_outliers_by_p_values(predicted_labels, 
+                                                    p_values_pos, 
+                                                    target_class=1, 
+                                                    upper_threshold=cfg["predict"]["threshold_p_value"])
 
     ################################################
     # PLOT PROTOTYPES AND EMBEDDINGS IN A 2D SPACE #

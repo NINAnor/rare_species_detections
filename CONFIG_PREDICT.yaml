@@ -58,9 +58,9 @@ predict:
   overwrite: True
   n_self_detected_supports: 0
   tolerance: 0
-  filter_by_p_values: False # Whether we filter outliers by their pvalues
   n_subsample: 1 # Whether each segment should be subsampled
-  self_detect_support: True # Whether to use the self-training loop
+  self_detect_support: False # Whether to use the self-training loop
+  filter_by_p_value: False # Whether we filter outliers by their pvalues
   threshold_p_value: 0.1
 
 plot:
