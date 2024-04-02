@@ -12,6 +12,7 @@ from pytorch_lightning.utilities.rank_zero import rank_zero_info
 
 from BEATs.BEATs import BEATs, BEATsConfig
 
+
 class BEATsTransferLearningModel(pl.LightningModule):
     def __init__(
         self,
@@ -19,7 +20,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
         lr: float = 1e-3,
         lr_scheduler_gamma: float = 1e-1,
         model_path: str = None,
-        ft_entire_network: bool = True, # Boolean on whether the classifier layer + BEATs should be fine-tuned
+        ft_entire_network: bool = True,  # Boolean on whether the classifier layer + BEATs should be fine-tuned
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -120,12 +121,13 @@ class BEATsTransferLearningModel(pl.LightningModule):
         if self.ft_entire_network:
             optimizer = optim.AdamW(
                 [{"params": self.beats.parameters()}, {"params": self.fc.parameters()}],
-                lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
-            )  
+                lr=self.lr,
+                betas=(0.9, 0.98),
+                weight_decay=0.01,
+            )
         else:
             optimizer = optim.AdamW(
-                self.fc.parameters(),
-                lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
-            )  
+                self.fc.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
+            )
 
         return optimizer

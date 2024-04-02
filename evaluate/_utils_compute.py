@@ -19,8 +19,8 @@ def to_dataframe(features, labels):
 
     return df
 
-def get_proto_coordinates(model, model_type, support_data, support_labels, n_way):
 
+def get_proto_coordinates(model, model_type, support_data, support_labels, n_way):
     if model_type == "beats":
         z_supports, _ = model.get_embeddings(support_data, padding_mask=None)
     else:
@@ -34,8 +34,10 @@ def get_proto_coordinates(model, model_type, support_data, support_labels, n_way
     # Return the coordinates of the prototypes and the z_supports
     return prototypes, z_supports
 
+
 def euclidean_distance(x1, x2):
     return torch.sqrt(torch.sum((x1 - x2) ** 2, dim=1))
+
 
 def calculate_distance(model_type, z_query, z_proto):
     # Compute the euclidean distance from queries to prototypes
@@ -55,6 +57,7 @@ def calculate_distance(model_type, z_query, z_proto):
 
     return scores, dists
 
+
 def compute_scores(predicted_labels, gt_labels):
     acc = accuracy_score(gt_labels, predicted_labels)
     recall = recall_score(gt_labels, predicted_labels)
@@ -66,11 +69,17 @@ def compute_scores(predicted_labels, gt_labels):
     print(f"F1 score: {f1score}")
     return acc, recall, precision, f1score
 
-def merge_preds(df, tolerence, tensor_length,frame_shift):
+
+def merge_preds(df, tolerence, tensor_length, frame_shift):
     df["group"] = (
-        df["Starttime"] > (df["Endtime"] + tolerence * tensor_length * frame_shift /1000 +0.00001).shift()).cumsum()
+        df["Starttime"]
+        > (
+            df["Endtime"] + tolerence * tensor_length * frame_shift / 1000 + 0.00001
+        ).shift()
+    ).cumsum()
     result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
+
 
 def reshape_support(support_samples, tensor_length=128, n_subsample=1):
     new_input = []
@@ -86,9 +95,10 @@ def reshape_support(support_samples, tensor_length=128, n_subsample=1):
                 x = torch.tensor(x)
                 x_adjusted = x if x.shape[0] == 1 else x.unsqueeze(0)
                 new_input.append(x_adjusted)
-        
+
     all_supports = torch.cat(new_input)  # Concatenate all tensors in the list
     return all_supports
+
 
 def train_model(
     model_type=None,
@@ -99,7 +109,7 @@ def train_model(
     seed=42,
     pretrained_model=None,
     state=None,
-    beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt"
+    beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
@@ -116,13 +126,13 @@ def train_model(
             ),
         ],
         default_root_dir="logs/",
-        enable_checkpointing=False
+        enable_checkpointing=False,
     )
 
     # create the model object
-    model = ProtoBEATsModel(model_type=model_type, 
-                            state=state, 
-                            model_path=pretrained_model)
+    model = ProtoBEATsModel(
+        model_type=model_type, state=state, model_path=pretrained_model
+    )
 
     # train the model
     trainer.fit(model, datamodule=datamodule_class)
@@ -130,8 +140,9 @@ def train_model(
     return model
 
 
-def training(model_type, pretrained_model, state, custom_datamodule, max_epoch, beats_path):
-
+def training(
+    model_type, pretrained_model, state, custom_datamodule, max_epoch, beats_path
+):
     model = train_model(
         model_type,
         custom_datamodule,
@@ -141,10 +152,11 @@ def training(model_type, pretrained_model, state, custom_datamodule, max_epoch, 
         seed=42,
         pretrained_model=pretrained_model,
         state=state,
-        beats_path=beats_path
+        beats_path=beats_path,
     )
 
     return model
+
 
 def predict_labels_query(
     model,
@@ -193,14 +205,18 @@ def predict_labels_query(
             end = begin + tensor_length * frame_shift / 1000
 
         # Get the scores:
-        classification_scores, dists = calculate_distance(model_type, q_embedding, prototypes)
+        classification_scores, dists = calculate_distance(
+            model_type, q_embedding, prototypes
+        )
 
         if model_type != "beats":
             dists = dists.squeeze()
             classification_scores = classification_scores.squeeze()
 
         # Get the labels (either POS or NEG):
-        predicted_labels = torch.max(classification_scores, 0)[pos_index]  # The dim where the distance to prototype is stored is 1
+        predicted_labels = torch.max(classification_scores, 0)[
+            pos_index
+        ]  # The dim where the distance to prototype is stored is 1
 
         distance_to_pos = dists[pos_index].detach().to("cpu").numpy()
         predicted_labels = predicted_labels.detach().to("cpu").numpy()
@@ -221,6 +237,7 @@ def predict_labels_query(
     q_embeddings = torch.cat([x for x in q_embeddings])
 
     return pred_labels, labels, begins, ends, d_to_pos, q_embeddings
+
 
 def filter_outliers_by_p_values(Y, p_values, target_class=1, upper_threshold=0.05):
     # Identify indices where the p-value is less than the threshold and the corresponding Y value equals the target_class

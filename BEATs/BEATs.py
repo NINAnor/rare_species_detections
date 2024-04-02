@@ -154,12 +154,12 @@ class BEATs(nn.Module):
         fbank = torch.stack(fbanks, dim=0)
         fbank = (fbank - fbank_mean) / (2 * fbank_std)
         return fbank
-    
+
     def specaugment(self, fbank, specaugment_params):
         # FBG: Add spectral masking
         if torch.rand(1) < specaugment_params["application_ratio"]:
             masking = ta_transforms.TimeMasking(
-                time_mask_param=specaugment_params["time_mask"], 
+                time_mask_param=specaugment_params["time_mask"],
             )
             fbank = masking(fbank)
             masking = ta_transforms.FrequencyMasking(
@@ -183,8 +183,11 @@ class BEATs(nn.Module):
 
         fbank = source.unsqueeze(1)
 
-        # FBG: add spectral masking 
-        if hasattr(self.cfg, "specaugment_params")  and not self.cfg.specaugment_params is None:
+        # FBG: add spectral masking
+        if (
+            hasattr(self.cfg, "specaugment_params")
+            and not self.cfg.specaugment_params is None
+        ):
             fbank = self.specaugment(fbank, self.cfg.specaugment_params)
         # end NOTE FBG
         features = self.patch_embedding(fbank)

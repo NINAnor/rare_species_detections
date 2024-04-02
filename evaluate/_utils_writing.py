@@ -3,6 +3,7 @@ import librosa
 import numpy as np
 import pandas as pd
 
+
 def write_results(predicted_labels, begins, ends):
     df_out = pd.DataFrame(
         {
@@ -13,6 +14,7 @@ def write_results(predicted_labels, begins, ends):
     )
 
     return df_out
+
 
 def write_wav(
     files,
@@ -26,7 +28,7 @@ def write_wav(
     frame_shift=1,
     resample=True,
     support_spectrograms=None,
-    result_merged=None
+    result_merged=None,
 ):
     from scipy.io import wavfile
 
@@ -92,9 +94,11 @@ def write_wav(
             / 1000
         ),
     )
-    merged_pred =np.zeros(len(arr))
-    for  ind, row in result_merged.iterrows():
-        merged_pred[int(row["Starttime"]*target_fs):int(row["Endtime"]*target_fs)] = 1
+    merged_pred = np.zeros(len(arr))
+    for ind, row in result_merged.iterrows():
+        merged_pred[
+            int(row["Starttime"] * target_fs) : int(row["Endtime"] * target_fs)
+        ] = 1
 
     # pad with zeros
     if len(arr) > len(gt_labels):
@@ -129,7 +133,7 @@ def write_wav(
 
     # Write the results
     result_wav = np.vstack(
-        (arr, gt_labels, merged_pred, pred_labels , distances_to_pos / 10, z_scores_pos)
+        (arr, gt_labels, merged_pred, pred_labels, distances_to_pos / 10, z_scores_pos)
     )
     wavfile.write(output, target_fs, result_wav.T)
 
@@ -161,10 +165,9 @@ def plot_2_d_representation(prototypes,
     if model_type == "beats":
         feat = feat[:, -1, :]
 
-    all_labels = np.concatenate([prototypes_labels, 
-                                 pos_supports_labels, 
-                                 neg_supports_labels, 
-                                 gt_labels])
+    all_labels = np.concatenate(
+        [prototypes_labels, pos_supports_labels, neg_supports_labels, gt_labels]
+    )
 
     # Run t-SNE
     tsne = TSNE(n_components=2, perplexity=perplexity)
@@ -176,14 +179,18 @@ def plot_2_d_representation(prototypes,
         1: "POS queries",
         2: "Prototypes",
         3: "POS supports",
-        4: "NEG supports"
+        4: "NEG supports",
     }
 
     # Figure
     plt.figure(figsize=(10, 8))
 
     # Define marker for each type of point
-    markers = {2: "P", 3: "o", 4: "X"}  # P for prototypes, o for supports, X for negative supports
+    markers = {
+        2: "P",
+        3: "o",
+        4: "X",
+    }  # P for prototypes, o for supports, X for negative supports
 
     for label in np.unique(all_labels):
         idx = np.where(all_labels == label)
@@ -191,17 +198,19 @@ def plot_2_d_representation(prototypes,
         size = 150 if label == 2 else 100 if label in markers else 50
         alpha = 1.0 if label == 2 else 0.8 if label in markers else 0.25
 
-        plt.scatter(features_2d[idx, 0], 
-                    features_2d[idx, 1], 
-                    label=label_descriptions[label], 
-                    alpha=alpha, 
-                    marker=markers.get(label, 'o'), 
-                    s=size)
+        plt.scatter(
+            features_2d[idx, 0],
+            features_2d[idx, 1],
+            label=label_descriptions[label],
+            alpha=alpha,
+            marker=markers.get(label, "o"),
+            s=size,
+        )
 
     plt.legend()
-    plt.title('t-SNE visualization of embeddings, prototypes, and supports')
-    plt.xlabel('Dimension 1')
-    plt.ylabel('Dimension 2')
+    plt.title("t-SNE visualization of embeddings, prototypes, and supports")
+    plt.xlabel("Dimension 1")
+    plt.ylabel("Dimension 2")
     plt.grid(True)
 
     # Save the figure

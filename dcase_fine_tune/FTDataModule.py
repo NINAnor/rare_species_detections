@@ -9,6 +9,7 @@ import numpy as np
 from torch.utils.data import WeightedRandomSampler
 from torchsampler import ImbalancedDatasetSampler
 
+
 class TrainAudioDatasetDCASE(Dataset):
     def __init__(
         self,
@@ -34,21 +35,22 @@ class TrainAudioDatasetDCASE(Dataset):
 
         return input_feature, label
 
+
 class DCASEDataModule(LightningDataModule):
     def __init__(
         self,
-        data_frame= pd.DataFrame,
-        batch_size = 4,
-        num_workers = 4,
-        tensor_length = 128,
-        test_size = 0,
-        min_sample_per_category = 5,
+        data_frame=pd.DataFrame,
+        batch_size=4,
+        num_workers=4,
+        tensor_length=128,
+        test_size=0,
+        min_sample_per_category=5,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.data_frame = data_frame
-        self.batch_size=batch_size
-        self.num_workers=num_workers
+        self.batch_size = batch_size
+        self.num_workers = num_workers
         self.tensor_length = tensor_length
         self.test_size = test_size
         self.min_sample_per_category = min_sample_per_category
@@ -58,18 +60,19 @@ class DCASEDataModule(LightningDataModule):
 
     def setup(self, stage=None):
         # load data
-        self.data_frame["category"] = LabelEncoder().fit_transform(self.data_frame["category"])
+        self.data_frame["category"] = LabelEncoder().fit_transform(
+            self.data_frame["category"]
+        )
         self.complete_dataset = TrainAudioDatasetDCASE(data_frame=self.data_frame)
 
     def divide_train_val(self):
-
         # Separate into training and validation set
         train_indices, validation_indices, _, _ = train_test_split(
             range(len(self.complete_dataset)),
             self.complete_dataset.get_labels(),
             test_size=self.test_size,
             random_state=1,
-            stratify=self.data_frame["category"]
+            stratify=self.data_frame["category"],
         )
 
         data_frame_train = self.data_frame.loc[train_indices]
@@ -77,7 +80,7 @@ class DCASEDataModule(LightningDataModule):
 
         # deal with class imbalance in the training set
         value_counts = data_frame_train["category"].value_counts()
-        weight = 1. / value_counts
+        weight = 1.0 / value_counts
         samples_weight = np.array([weight[t] for t in data_frame_train["category"]])
         samples_weight = torch.from_numpy(samples_weight)
         samples_weight = samples_weight.double()
@@ -99,6 +102,7 @@ class DCASEDataModule(LightningDataModule):
         )
 
     def train_dataloader(self):
+<<<<<<< Updated upstream
         train_loader = DataLoader(self.train_set, 
                                   batch_size=self.batch_size, 
                                   num_workers=self.num_workers, 
@@ -106,30 +110,38 @@ class DCASEDataModule(LightningDataModule):
                                   collate_fn=self.collate_fn,
                                   sampler=ImbalancedDatasetSampler(self.train_set)       #self.sampler
                                   )
+=======
+        train_loader = DataLoader(
+            self.train_set,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=False,
+            collate_fn=self.collate_fn,
+            sampler=self.sampler,
+        )
+>>>>>>> Stashed changes
         return train_loader
-    
+
     def val_dataloader(self):
-        val_loader = DataLoader(self.val_set, 
-                                  batch_size=self.batch_size, 
-                                  num_workers=self.num_workers, 
-                                  pin_memory=False, 
-                                  collate_fn=self.collate_fn)
+        val_loader = DataLoader(
+            self.val_set,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=False,
+            collate_fn=self.collate_fn,
+        )
         return val_loader
 
     def get_label_dict(self):
         label_dic = self.complete_dataset.get_label_dict()
         return label_dic
-    
-    def collate_fn(
-            self, input_data
-    ):
+
+    def collate_fn(self, input_data):
         true_class_ids = list({x[1] for x in input_data})
         new_input = []
         for x in input_data:
             if x[0].shape[1] > self.tensor_length:
-                rand_start = torch.randint(
-                    0, x[0].shape[1] - self.tensor_length, (1,)
-                )
+                rand_start = torch.randint(0, x[0].shape[1] - self.tensor_length, (1,))
                 new_input.append(
                     (x[0][:, rand_start : rand_start + self.tensor_length], x[1])
                 )
@@ -137,11 +149,9 @@ class DCASEDataModule(LightningDataModule):
                 new_input.append(x)
 
         all_images = torch.cat([x[0].unsqueeze(0) for x in new_input])
-        all_labels = (torch.tensor([true_class_ids.index(x[1]) for x in input_data]))
+        all_labels = torch.tensor([true_class_ids.index(x[1]) for x in input_data])
 
         return (all_images, all_labels)
-    
-    
 
 
 class AudioDatasetDCASE(Dataset):
@@ -189,17 +199,14 @@ class AudioDatasetDCASE(Dataset):
     def get_label_dict(self):
         return self.label_dict
 
-class predictLoader():
+
+class predictLoader:
     def __init__(
-        self,
-        data_frame= pd.DataFrame,
-        batch_size = 1,
-        num_workers = 4,
-        tensor_length = 128
+        self, data_frame=pd.DataFrame, batch_size=1, num_workers=4, tensor_length=128
     ):
         self.data_frame = data_frame
-        self.batch_size=batch_size
-        self.num_workers=num_workers
+        self.batch_size = batch_size
+        self.num_workers = num_workers
         self.tensor_length = tensor_length
         self.setup()
 
@@ -208,28 +215,24 @@ class predictLoader():
         self.complete_dataset = AudioDatasetDCASE(
             data_frame=self.data_frame,
         )
-        
 
     def pred_dataloader(self):
-        pred_loader = DataLoader(self.complete_dataset, 
-                                  batch_size=self.batch_size, 
-                                  num_workers=self.num_workers, 
-                                  pin_memory=False, 
-                                  shuffle=True,
-                                  collate_fn=self.collate_fn)
+        pred_loader = DataLoader(
+            self.complete_dataset,
+            batch_size=self.batch_size,
+            num_workers=self.num_workers,
+            pin_memory=False,
+            shuffle=True,
+            collate_fn=self.collate_fn,
+        )
         return pred_loader
 
-
-    def collate_fn(
-            self, input_data
-    ):
+    def collate_fn(self, input_data):
         true_class_ids = list({x[1] for x in input_data})
         new_input = []
         for x in input_data:
             if x[0].shape[1] > self.tensor_length:
-                rand_start = torch.randint(
-                    0, x[0].shape[1] - self.tensor_length, (1,)
-                )
+                rand_start = torch.randint(0, x[0].shape[1] - self.tensor_length, (1,))
                 new_input.append(
                     (x[0][:, rand_start : rand_start + self.tensor_length], x[1])
                 )
@@ -237,7 +240,6 @@ class predictLoader():
                 new_input.append(x)
 
         all_images = torch.cat([x[0].unsqueeze(0) for x in new_input])
-        all_labels = (torch.tensor([true_class_ids.index(x[1]) for x in input_data]))
+        all_labels = torch.tensor([true_class_ids.index(x[1]) for x in input_data])
 
         return (all_images, all_labels)
-

@@ -2,6 +2,7 @@ import pytorch_lightning as pl
 from torch.optim.optimizer import Optimizer
 from pytorch_lightning.callbacks.finetuning import BaseFinetuning
 
+
 class MilestonesFinetuning(BaseFinetuning):
     def __init__(self, milestones: int = 1):
         super().__init__()
@@ -16,7 +17,7 @@ class MilestonesFinetuning(BaseFinetuning):
         print("[INFO] Unfreezing the last layer of the model")
         last_layer = list(pl_module.model.children())[-1]
         # If the last layer is a container, unfreeze its last layer
-        if hasattr(last_layer, 'children') and list(last_layer.children()):
+        if hasattr(last_layer, "children") and list(last_layer.children()):
             last_sublayer = list(last_layer.children())[-1]
             for param in last_sublayer.parameters():
                 param.requires_grad = True
@@ -25,11 +26,11 @@ class MilestonesFinetuning(BaseFinetuning):
                 param.requires_grad = True
 
     def finetune_function(
-        self, 
-        pl_module: pl.LightningModule, 
-        epoch: int, 
-        optimizer: Optimizer, 
-        opt_idx: int
+        self,
+        pl_module: pl.LightningModule,
+        epoch: int,
+        optimizer: Optimizer,
+        opt_idx: int,
     ):
         # Unfreeze the entire model at the specified epoch
         if epoch == self.unfreeze_at_epoch:

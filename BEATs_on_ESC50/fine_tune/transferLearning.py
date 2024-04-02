@@ -23,7 +23,7 @@ class BEATsTransferLearningModel(pl.LightningModule):
         lr_scheduler_gamma: float = 1e-1,
         num_workers: int = 6,
         model_path: str = "/model/BEATs_iter3_plus_AS2M.pt",
-        ft_entire_network: bool = False, # Boolean on whether the classifier layer + BEATs should be fine-tuned
+        ft_entire_network: bool = False,  # Boolean on whether the classifier layer + BEATs should be fine-tuned
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -123,13 +123,13 @@ class BEATsTransferLearningModel(pl.LightningModule):
         if self.ft_entire_network:
             optimizer = optim.AdamW(
                 [{"params": self.beats.parameters()}, {"params": self.fc.parameters()}],
-                lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
-            )  
+                lr=self.lr,
+                betas=(0.9, 0.98),
+                weight_decay=0.01,
+            )
         else:
             optimizer = optim.AdamW(
-                self.fc.parameters(),
-                lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
-            )  
-
+                self.fc.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
+            )
 
         return optimizer

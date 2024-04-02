@@ -5,6 +5,7 @@ import pandas as pd
 
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 
+
 def write_results(predicted_labels, begins, ends):
     df_out = pd.DataFrame(
         {
@@ -16,6 +17,7 @@ def write_results(predicted_labels, begins, ends):
 
     return df_out
 
+
 def write_wav(
     files,
     cfg,
@@ -26,7 +28,7 @@ def write_wav(
     target_fs=16000,
     target_path=None,
     frame_shift=1,
-    support_spectrograms=None
+    support_spectrograms=None,
 ):
     from scipy.io import wavfile
 
@@ -92,7 +94,7 @@ def write_wav(
         gt_labels, (0, len(gt_labels) - len(arr)), "constant", constant_values=(0,)
     )
     pred_labels = np.pad(
-        pred_labels, (0, len(pred_labels) - len(arr) ), "constant", constant_values=(0,)
+        pred_labels, (0, len(pred_labels) - len(arr)), "constant", constant_values=(0,)
     )
     distances_to_pos = np.pad(
         distances_to_pos,
@@ -102,7 +104,7 @@ def write_wav(
     )
     z_scores_pos = np.pad(
         z_scores_pos,
-      (0, len(z_scores_pos) - len(arr)),
+        (0, len(z_scores_pos) - len(arr)),
         "constant",
         constant_values=(0,),
     )
@@ -113,12 +115,14 @@ def write_wav(
     )
     wavfile.write(output, target_fs, result_wav.T)
 
+
 def merge_preds(df, tolerence, tensor_length):
     df["group"] = (
         df["Starttime"] > (df["Endtime"] + tolerence * tensor_length).shift().cummax()
     ).cumsum()
     result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
+
 
 def to_dataframe(features, labels):
     """Load the saved array and map the features and labels into a single dataframe"""
@@ -127,6 +131,7 @@ def to_dataframe(features, labels):
     list_input_features = [input_features[key] for key in input_features.files]
     df = pd.DataFrame({"feature": list_input_features, "category": labels})
     return df
+
 
 def compute_scores(predicted_labels, gt_labels):
     acc = accuracy_score(gt_labels, predicted_labels)
@@ -139,5 +144,8 @@ def compute_scores(predicted_labels, gt_labels):
     print(f"F1 score: {f1score}")
     return acc, recall, precision, f1score
 
+
 def construct_path(base_dir, status, hash_dir_name, file_type, file_pattern):
-    return os.path.join(base_dir, status, hash_dir_name, "audio", f"{file_type}.{file_pattern}")
+    return os.path.join(
+        base_dir, status, hash_dir_name, "audio", f"{file_type}.{file_pattern}"
+    )

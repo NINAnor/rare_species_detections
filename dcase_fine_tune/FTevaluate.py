@@ -15,11 +15,23 @@ import numpy as np
 import torch
 
 from dcase_fine_tune.FTBeats import BEATsTransferLearningModel
-from dcase_fine_tune.FTDataModule import AudioDatasetDCASE, DCASEDataModule, predictLoader
-from dcase_fine_tune._utils import write_wav, write_results, merge_preds, to_dataframe, construct_path, compute_scores
+from dcase_fine_tune.FTDataModule import (
+    AudioDatasetDCASE,
+    DCASEDataModule,
+    predictLoader,
+)
+from dcase_fine_tune._utils import (
+    write_wav,
+    write_results,
+    merge_preds,
+    to_dataframe,
+    construct_path,
+    compute_scores,
+)
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+
 
 def finetune_model(
     model_path,
@@ -37,10 +49,12 @@ def finetune_model(
         auto_select_gpus=True,
         callbacks=[
             pl.callbacks.LearningRateMonitor(logging_interval="step"),
-            pl.callbacks.EarlyStopping(monitor="train_acc", mode="max", patience=max_epochs),
+            pl.callbacks.EarlyStopping(
+                monitor="train_acc", mode="max", patience=max_epochs
+            ),
         ],
         default_root_dir="logs/",
-        enable_checkpointing=False
+        enable_checkpointing=False,
     )
 
     # create the model object
@@ -51,10 +65,10 @@ def finetune_model(
 
     return model
 
+
 def predict_label(cfg, model, loader, frame_shift):
-        
     model = model.to("cuda")
-    
+
     # Get the embeddings, the beginning and end of the segment!
     pred_labels = []
     labels = []
@@ -72,7 +86,13 @@ def predict_label(cfg, model, loader, frame_shift):
             begin = i / 1000
             end = cfg["data"]["tensor_length"] * frame_shift / 1000
         else:
-            begin = i * cfg["data"]["tensor_length"] * frame_shift * cfg["data"]["overlap"] / 1000
+            begin = (
+                i
+                * cfg["data"]["tensor_length"]
+                * frame_shift
+                * cfg["data"]["overlap"]
+                / 1000
+            )
             end = begin + cfg["data"]["tensor_length"] * frame_shift / 1000
 
         # Get the scores:
@@ -95,6 +115,7 @@ def predict_label(cfg, model, loader, frame_shift):
 
     return pred_labels, labels, begins, ends
 
+
 def train_predict(
     cfg,
     meta_df,
@@ -102,9 +123,8 @@ def train_predict(
     support_labels,
     query_spectrograms,
     query_labels,
-    target_path="/data"
+    target_path="/data",
 ):
-    
     # Get the filename and the frame_shift for the particular file
     filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
     frame_shift = meta_df.loc[filename, "frame_shift"]
@@ -117,10 +137,12 @@ def train_predict(
     assert filename in query_labels
 
     df_support = to_dataframe(support_spectrograms, support_labels)
-    supportLoader = DCASEDataModule(data_frame=df_support, 
-                                    batch_size=cfg["trainer"]["batch_size"], 
-                                    num_workers=cfg["trainer"]["num_workers"],
-                                    tensor_length=cfg["data"]["tensor_length"])
+    supportLoader = DCASEDataModule(
+        data_frame=df_support,
+        batch_size=cfg["trainer"]["batch_size"],
+        num_workers=cfg["trainer"]["num_workers"],
+        tensor_length=cfg["data"]["tensor_length"],
+    )
 
     label_dic = supportLoader.get_label_dict()
 
@@ -130,9 +152,10 @@ def train_predict(
 
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
-    model = finetune_model(model_path=cfg["model"]["model_path"], 
-                           datamodule_class=supportLoader, 
-                           max_epochs=cfg["trainer"]["max_epochs"]
+    model = finetune_model(
+        model_path=cfg["model"]["model_path"],
+        datamodule_class=supportLoader,
+        max_epochs=cfg["trainer"]["max_epochs"],
     )
 
     #################################
@@ -141,15 +164,16 @@ def train_predict(
 
     ### Get the query dataset ###
     df_query = to_dataframe(query_spectrograms, query_labels)
-    queryLoader = predictLoader(data_frame=df_query,
-                                batch_size=1,
-                                num_workers=cfg["trainer"]["num_workers"],
-                                tensor_length=cfg["data"]["tensor_length"]).pred_dataloader()
-    
-    predicted_labels, labels, begins, ends = predict_label(cfg=cfg, 
-                                                           model=model, 
-                                                           loader=queryLoader,
-                                                           frame_shift=frame_shift)
+    queryLoader = predictLoader(
+        data_frame=df_query,
+        batch_size=1,
+        num_workers=cfg["trainer"]["num_workers"],
+        tensor_length=cfg["data"]["tensor_length"],
+    ).pred_dataloader()
+
+    predicted_labels, labels, begins, ends = predict_label(
+        cfg=cfg, model=model, loader=queryLoader, frame_shift=frame_shift
+    )
 
     ######################
     # COMPUTE THE SCORES #
@@ -157,7 +181,7 @@ def train_predict(
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(
-        predicted_labels=predicted_labels,  #updated_labels,
+        predicted_labels=predicted_labels,  # updated_labels,
         gt_labels=labels,
     )
     with open(
@@ -208,16 +232,27 @@ def train_predict(
         df_result_raw,
     )
 
-@hydra.main(version_base=None, config_path="/app/dcase_fine_tune", config_name="CONFIG.yaml")
-def main(cfg: DictConfig):
 
+@hydra.main(
+    version_base=None, config_path="/app/dcase_fine_tune", config_name="CONFIG.yaml"
+)
+def main(cfg: DictConfig):
     # Get training config
     version_path = os.path.dirname(os.path.dirname(cfg["model"]["model_path"]))
     version_name = os.path.basename(version_path)
 
     # Simplify the creation of my_hash_dict using dictionary comprehension
-    keys = ["resample", "denoise", "normalize", "frame_length", "tensor_length",
-            "set_type", "overlap", "num_mel_bins", "max_segment_length"]
+    keys = [
+        "resample",
+        "denoise",
+        "normalize",
+        "frame_length",
+        "tensor_length",
+        "set_type",
+        "overlap",
+        "num_mel_bins",
+        "max_segment_length",
+    ]
     my_hash_dict = {k: cfg["data"][k] for k in keys}
 
     # Conditionally add 'target_fs' if 'resample' is True
@@ -225,7 +260,9 @@ def main(cfg: DictConfig):
         my_hash_dict["target_fs"] = cfg["data"]["target_fs"]
 
     # Generate hash directory name
-    hash_dir_name = hashlib.sha1(json.dumps(my_hash_dict, sort_keys=True).encode()).hexdigest()
+    hash_dir_name = hashlib.sha1(
+        json.dumps(my_hash_dict, sort_keys=True).encode()
+    ).hexdigest()
 
     # Base directory for data
     base_data_path = "/data/DCASEfewshot"
@@ -284,7 +321,7 @@ def main(cfg: DictConfig):
     param = deepcopy(cfg)
     # Convert the DictConfig object to a standard Python dictionary
     param = OmegaConf.to_container(param, resolve=True)
-    
+
     with open(os.path.join(target_path, "param.json"), "w") as fp:
         json.dump(param, fp)
 
@@ -353,7 +390,7 @@ def main(cfg: DictConfig):
                 target_fs=cfg["data"]["target_fs"],
                 target_path=target_path,
                 frame_shift=meta_df.loc[filename, "frame_shift"],
-                support_spectrograms=support_spectrograms
+                support_spectrograms=support_spectrograms,
             )
 
     # Return the final product

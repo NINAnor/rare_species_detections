@@ -4,20 +4,25 @@ import pandas as pd
 import os
 import shutil
 
+
 def few_shot_sample(data_frame: pd.DataFrame, classes: list, n_samples: int, seed: int):
     cat_dfs = []
     for c in classes:
-        cat_df = data_frame[data_frame["category"] == c].sample(n_samples, random_state=seed)
+        cat_df = data_frame[data_frame["category"] == c].sample(
+            n_samples, random_state=seed
+        )
         cat_dfs.append(cat_df)
     full_df = pd.concat(cat_dfs)
     return full_df
 
+
 def copy_to_folder(data_frame: pd.DataFrame, target_folder: str):
-    for i in range(0,len(data_frame)):
+    for i in range(0, len(data_frame)):
         fpath = data_frame.iloc[i]["filepath"]
         fname = data_frame.iloc[i]["filename"]
         outpath = os.path.join(target_folder, fname)
         shutil.copy(fpath, outpath)
+
 
 def split_data(data_frame, train_samples, val_samples):
     train_dfs = []
@@ -37,8 +42,8 @@ def split_data(data_frame, train_samples, val_samples):
     test_df = pd.concat(test_dfs)
     return train_df, val_df, test_df
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     root_dir = "/data/ESC-50-master"
     csv_file = "/data/ESC-50-master/meta/esc50.csv"
     target_path = "/data/ESC50mini"
@@ -47,7 +52,7 @@ if __name__ == "__main__":
 
     fpath_list = []
 
-    for i in range(0,len(data_frame)):
+    for i in range(0, len(data_frame)):
         # List all the full path
         fname = data_frame.iloc[i]["filename"]
         fpath = os.path.join(root_dir, "audio", fname)
@@ -85,4 +90,3 @@ if __name__ == "__main__":
     copy_to_folder(train_df, os.path.join(target_path, "audio/train"))
     copy_to_folder(val_df, os.path.join(target_path, "audio/val"))
     copy_to_folder(test_df, os.path.join(target_path, "audio/test"))
-

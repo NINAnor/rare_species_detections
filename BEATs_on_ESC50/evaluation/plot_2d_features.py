@@ -73,11 +73,16 @@ def loadBEATs(ft_model):
     else:
         print("Using the fine tuned model to get the representations")
         ft = torch.load(ft_model)
-        ft["state_dict"] = {key.replace('beats.', ''): value for key, value in ft["state_dict"].items() if not key.endswith(('fc.weight', 'fc.bias'))}
+        ft["state_dict"] = {
+            key.replace("beats.", ""): value
+            for key, value in ft["state_dict"].items()
+            if not key.endswith(("fc.weight", "fc.bias"))
+        }
         BEATs_model.load_state_dict(ft["state_dict"])
 
     BEATs_model.eval()
     return BEATs_model
+
 
 def extractFeatures(BEATs_model, trs):
     for t in trs:
@@ -85,6 +90,7 @@ def extractFeatures(BEATs_model, trs):
         representation = BEATs_model.extract_features(t, padding_mask=padding_mask)[0]
         representation = representation[:, -1, :]
         yield representation.detach().numpy()
+
 
 def get_2d_features(features, perplexity):
     representation = np.concatenate(np.array(list(features)), axis=0)
