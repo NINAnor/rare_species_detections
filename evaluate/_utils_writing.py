@@ -137,31 +137,37 @@ def write_wav(
     )
     wavfile.write(output, target_fs, result_wav.T)
 
-def plot_2_d_representation(prototypes,
-                            z_pos_supports,
-                            z_neg_supports,
-                            q_embeddings,
-                            labels,
-                            output,
-                            model_type, 
-                            perplexity=5):
-    
+
+def plot_2_d_representation(
+    prototypes,
+    z_pos_supports,
+    z_neg_supports,
+    q_embeddings,
+    labels,
+    output,
+    model_type,
+    perplexity=5,
+):
     import matplotlib.pyplot as plt
     from sklearn.manifold import TSNE
 
     # Create a labels array for all points
     # Label for prototypes, positive supports, negative supports, and query embeddings respectively
-    prototypes_labels = np.array([2] * prototypes.shape[0]) 
-    pos_supports_labels = np.array([3] * z_pos_supports.shape[0]) 
-    neg_supports_labels = np.array([4] * z_neg_supports.shape[0]) 
+    prototypes_labels = np.array([2] * prototypes.shape[0])
+    pos_supports_labels = np.array([3] * z_pos_supports.shape[0])
+    neg_supports_labels = np.array([4] * z_neg_supports.shape[0])
     q_embeddings = q_embeddings.to("cpu").detach().numpy()
-    gt_labels = np.squeeze(labels) # already a numpy object
+    gt_labels = np.squeeze(labels)  # already a numpy object
 
     # Concatenate everything into one dataset
-    feat = np.concatenate([prototypes.to("cpu").detach().numpy(), 
-                           z_pos_supports.to("cpu").detach().numpy(), 
-                           z_neg_supports.to("cpu").detach().numpy(), 
-                           q_embeddings])
+    feat = np.concatenate(
+        [
+            prototypes.to("cpu").detach().numpy(),
+            z_pos_supports.to("cpu").detach().numpy(),
+            z_neg_supports.to("cpu").detach().numpy(),
+            q_embeddings,
+        ]
+    )
     if model_type == "beats":
         feat = feat[:, -1, :]
 

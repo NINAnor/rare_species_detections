@@ -21,19 +21,29 @@ from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
 
 import pytorch_lightning as pl
-#pl.utilities.seed.seed_everything(0, workers=True)
+
+# pl.utilities.seed.seed_everything(0, workers=True)
 
 from callbacks.callbacks import MilestonesFinetuning
 
 from statsmodels.distributions.empirical_distribution import ECDF
 
 from evaluate._utils_writing import write_wav, write_results, plot_2_d_representation
-from evaluate._utils_compute import (to_dataframe, get_proto_coordinates, calculate_distance, 
-                                     compute_scores, merge_preds, reshape_support, training, 
-                                     predict_labels_query, filter_outliers_by_p_values)
+from evaluate._utils_compute import (
+    to_dataframe,
+    get_proto_coordinates,
+    calculate_distance,
+    compute_scores,
+    merge_preds,
+    reshape_support,
+    training,
+    predict_labels_query,
+    filter_outliers_by_p_values,
+)
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+
 
 def compute(
     cfg,
@@ -42,7 +52,7 @@ def compute(
     support_labels,
     query_spectrograms,
     query_labels,
-    target_path="/data"
+    target_path="/data",
 ):
     # Get the filename and the frame_shift for the particular file
     filename = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
@@ -54,14 +64,14 @@ def compute(
     assert filename in query_labels
 
     df_support = to_dataframe(support_spectrograms, support_labels)
-    
+
     custom_dcasedatamodule = DCASEDataModule(
         data_frame=df_support,
         tensor_length=cfg["data"]["tensor_length"],
         n_shot=3,
         n_query=2,
         n_subsample=cfg["data"]["n_subsample"],
-        n_task_train=cfg["data"]["n_task_train"]
+        n_task_train=cfg["data"]["n_task_train"],
     )
     label_dic = custom_dcasedatamodule.get_label_dic()
     pos_index = label_dic["POS"]
@@ -69,12 +79,12 @@ def compute(
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
     model = training(
-        model_type=cfg["model"]["model_type"], 
+        model_type=cfg["model"]["model_type"],
         pretrained_model=cfg["model"]["model_path"],
-        state=cfg["model"]["state"], 
-        custom_datamodule=custom_dcasedatamodule, 
-        max_epoch=cfg["trainer"]["max_epochs"], 
-        beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt"
+        state=cfg["model"]["state"],
+        custom_datamodule=custom_dcasedatamodule,
+        max_epoch=cfg["trainer"]["max_epochs"],
+        beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
     )
 
     model_type = cfg["model"]["model_type"]
@@ -82,23 +92,33 @@ def compute(
     # Get the prototypes coordinates
     a = custom_dcasedatamodule.test_dataloader()
     s, sl, _, _, ways = a
-    prototypes, z_supports = get_proto_coordinates(model, model_type, s, sl, n_way=len(ways))
+    prototypes, z_supports = get_proto_coordinates(
+        model, model_type, s, sl, n_way=len(ways)
+    )
 
     #################################################
     ### GET THE DISTRIBUTION OF THE POS DISTANCES ###
     #################################################
     print("GETTING THE DISTRIBUTION OF THE POS SUPPORT SAMPLES")
-    support_samples_pos = df_support[df_support["category"] == "POS"]["feature"].to_numpy()
-    support_samples_pos = reshape_support(support_samples_pos, 
-                                          tensor_length=cfg["data"]["tensor_length"], 
-                                          n_subsample=cfg["predict"]["n_subsample"])
-    
+    support_samples_pos = df_support[df_support["category"] == "POS"][
+        "feature"
+    ].to_numpy()
+    support_samples_pos = reshape_support(
+        support_samples_pos,
+        tensor_length=cfg["data"]["tensor_length"],
+        n_subsample=cfg["predict"]["n_subsample"],
+    )
+
     if cfg["model"]["model_type"] == "beats":
         z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None)
-        _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports, prototypes[pos_index])
+        _, d_supports_to_POS_prototypes = calculate_distance(
+            model_type, z_pos_supports, prototypes[pos_index]
+        )
     else:
         z_pos_supports = model.get_embeddings(support_samples_pos, padding_mask=None)
-        _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports, prototypes[pos_index])
+        _, d_supports_to_POS_prototypes = calculate_distance(
+            model_type, z_pos_supports, prototypes[pos_index]
+        )
         d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
 
     ecdf = ECDF(d_supports_to_POS_prototypes.detach().numpy())
@@ -106,12 +126,16 @@ def compute(
     ######################################
     # GET EMBEDDINGS FOR THE NEG SAMPLES #
     ######################################
-    support_samples_neg = df_support[df_support["category"] == "NEG"]["feature"].to_numpy()
-    support_samples_neg = reshape_support(support_samples_neg, 
-                                          tensor_length=cfg["data"]["tensor_length"], 
-                                          n_subsample=cfg["predict"]["n_subsample"])
-    
-    #z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
+    support_samples_neg = df_support[df_support["category"] == "NEG"][
+        "feature"
+    ].to_numpy()
+    support_samples_neg = reshape_support(
+        support_samples_neg,
+        tensor_length=cfg["data"]["tensor_length"],
+        n_subsample=cfg["predict"]["n_subsample"],
+    )
+
+    # z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
 
     if cfg["model"]["model_type"] == "beats":
         z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
@@ -134,7 +158,7 @@ def compute(
         begins,
         ends,
         distances_to_pos,
-        q_embeddings
+        q_embeddings,
     ) = predict_labels_query(
         model,
         model_type,
@@ -157,12 +181,16 @@ def compute(
         #########################################################
 
         # Detect POS samples
-        detected_pos_indices = np.where(p_values_pos == 1)[0] # We need to be sure that it is POS samples
+        detected_pos_indices = np.where(p_values_pos == 1)[
+            0
+        ]  # We need to be sure that it is POS samples
         print(f"[INFO] SELF DETECTED {len(detected_pos_indices)} POS SAMPLES")
 
         # BECAUSE CUDA ERROR WHEN RESAMPLING TOO MANY SAMPLES
-        if len(detected_pos_indices) > 40:
-            detected_pos_indices = np.random.choice(detected_pos_indices, size=40, replace=False)
+        if len(detected_pos_indices) > 20:
+            detected_pos_indices = np.random.choice(
+                detected_pos_indices, size=20, replace=False
+            )
 
         df_extension_pos = df_query.iloc[detected_pos_indices].copy()
         df_extension_pos["category"] = "POS"
@@ -172,31 +200,47 @@ def compute(
         num_pos_samples = len(detected_pos_indices)
 
         if num_pos_samples > 0 and len(df_neg) > num_pos_samples:
-            sampled_neg_indices = np.random.choice(range(0, len(df_neg)), size=num_pos_samples, replace=False)
+            sampled_neg_indices = np.random.choice(
+                range(0, len(df_neg)), size=num_pos_samples, replace=False
+            )
             df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
             df_extension_neg["category"] = "NEG"
         else:
             df_extension_neg = df_neg
 
         # Append both POS and NEG samples to the support set
-        df_support_extended = df_support.append([df_extension_pos, df_extension_neg], ignore_index=True)
+        df_support_extended = df_support.append(
+            [df_extension_pos, df_extension_neg], ignore_index=True
+        )
 
         ########################
         # RECALCULATE THE ECDF #
         ########################
         print("RE-CALCULATING THE ECDF DISTRIBUTION OF THE POS SUPPORT SAMPLES")
-        support_samples_pos = df_support_extended[df_support_extended["category"] == "POS"]["feature"].to_numpy()
+        support_samples_pos = df_support_extended[
+            df_support_extended["category"] == "POS"
+        ]["feature"].to_numpy()
 
-        support_samples_pos = reshape_support(support_samples_pos, 
-                                            tensor_length=cfg["data"]["tensor_length"], 
-                                            n_subsample=cfg["predict"]["n_subsample"])
+        support_samples_pos = reshape_support(
+            support_samples_pos,
+            tensor_length=cfg["data"]["tensor_length"],
+            n_subsample=cfg["predict"]["n_subsample"],
+        )
 
         if cfg["model"]["model_type"] == "beats":
-            z_pos_supports, _ = model.get_embeddings(support_samples_pos.to("cuda"), padding_mask=None)
-            _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda"))
+            z_pos_supports, _ = model.get_embeddings(
+                support_samples_pos.to("cuda"), padding_mask=None
+            )
+            _, d_supports_to_POS_prototypes = calculate_distance(
+                model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
+            )
         else:
-            z_pos_supports = model.get_embeddings(support_samples_pos.to("cuda"), padding_mask=None)
-            _, d_supports_to_POS_prototypes = calculate_distance(model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda"))
+            z_pos_supports = model.get_embeddings(
+                support_samples_pos.to("cuda"), padding_mask=None
+            )
+            _, d_supports_to_POS_prototypes = calculate_distance(
+                model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
+            )
             d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
 
         ecdf = ECDF(d_supports_to_POS_prototypes.to("cpu").detach().numpy())
@@ -208,8 +252,12 @@ def compute(
         support_to_query_ratio = 1.5
 
         # Calculate the total number of samples for each category (POS and NEG)
-        num_pos_samples = len(df_support_extended[df_support_extended['category'] == 'POS'])
-        num_neg_samples = len(df_support_extended[df_support_extended['category'] == 'NEG'])
+        num_pos_samples = len(
+            df_support_extended[df_support_extended["category"] == "POS"]
+        )
+        num_neg_samples = len(
+            df_support_extended[df_support_extended["category"] == "NEG"]
+        )
 
         # Assuming an equal distribution of samples between support and query for simplicity
         total_samples_per_class = min(num_pos_samples, num_neg_samples)
@@ -218,7 +266,9 @@ def compute(
         # Calculate n_shot and n_query based on the desired ratio
         # The total should not exceed the total_samples_per_class for each category
         total_slots_per_class = total_samples_per_class / (1 + support_to_query_ratio)
-        n_query = int(total_slots_per_class)  # Round down to ensure we do not exceed the available samples
+        n_query = int(
+            total_slots_per_class
+        )  # Round down to ensure we do not exceed the available samples
         n_shot = int(total_slots_per_class * support_to_query_ratio)
 
         print(f"[INFO] Retraining with n_support={n_shot} and n_query={n_query}")
@@ -241,18 +291,20 @@ def compute(
         print("[INFO] RE-TRAINING THE MODEL FOR {}".format(filename))
 
         model = training(
-            model_type=cfg["model"]["model_type"], 
+            model_type=cfg["model"]["model_type"],
             pretrained_model=cfg["model"]["model_path"],
-            state=cfg["model"]["state"], 
-            custom_datamodule=custom_dcasedatamodule, 
-            max_epoch=cfg["trainer"]["max_epochs"], 
-            beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt"
+            state=cfg["model"]["state"],
+            custom_datamodule=custom_dcasedatamodule,
+            max_epoch=cfg["trainer"]["max_epochs"],
+            beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
         )
 
         # Get the prototypes coordinates
         a = custom_dcasedatamodule.test_dataloader()
         s, sl, _, _, ways = a
-        prototypes, z_supports = get_proto_coordinates(model, model_type, s, sl, n_way=len(ways))
+        prototypes, z_supports = get_proto_coordinates(
+            model, model_type, s, sl, n_way=len(ways)
+        )
 
         ##############
         # RE-PREDICT #
@@ -263,7 +315,7 @@ def compute(
             begins,
             ends,
             distances_to_pos,
-            q_embeddings
+            q_embeddings,
         ) = predict_labels_query(
             model,
             model_type,
@@ -275,36 +327,43 @@ def compute(
             overlap=cfg["data"]["overlap"],
             pos_index=pos_index,
         )
-    
+
     # Get the updated pvalues
     p_values_pos = 1 - ecdf(distances_to_pos)
 
     # Filter by pvalues
     if cfg["predict"]["filter_by_p_value"]:
-        predicted_labels = filter_outliers_by_p_values(predicted_labels, 
-                                                    p_values_pos, 
-                                                    target_class=1, 
-                                                    upper_threshold=cfg["predict"]["threshold_p_value"])
+        predicted_labels = filter_outliers_by_p_values(
+            predicted_labels,
+            p_values_pos,
+            target_class=1,
+            upper_threshold=cfg["predict"]["threshold_p_value"],
+        )
 
     ################################################
     # PLOT PROTOTYPES AND EMBEDDINGS IN A 2D SPACE #
     ################################################
     if cfg["plot"]["tsne"]:
         print("[INFO] CREATING A FIGURE")
-        fig_name = os.path.basename(support_spectrograms).split("data_")[1].split(".")[0] + ".png"
+        fig_name = (
+            os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
+            + ".png"
+        )
         output = os.path.join(target_path, fig_name)
-        plot_2_d_representation(prototypes, 
-                                z_pos_supports, 
-                                z_neg_supports, 
-                                q_embeddings,
-                                labels,
-                                output,
-                                cfg["model"]["model_type"],
-                                cfg["plot"]["perplexity"])
+        plot_2_d_representation(
+            prototypes,
+            z_pos_supports,
+            z_neg_supports,
+            q_embeddings,
+            labels,
+            output,
+            cfg["model"]["model_type"],
+            cfg["plot"]["perplexity"],
+        )
 
     # Compute the scores for the analysed file -- just as information
     acc, recall, precision, f1score = compute_scores(
-        predicted_labels=predicted_labels,  #updated_labels,
+        predicted_labels=predicted_labels,  # updated_labels,
         gt_labels=labels,
     )
     with open(
@@ -339,7 +398,7 @@ def compute(
         df=result_POS,
         tolerence=cfg["tolerance"],
         tensor_length=cfg["data"]["tensor_length"],
-        frame_shift=frame_shift
+        frame_shift=frame_shift,
     )
 
     # Add the filename
@@ -363,7 +422,6 @@ def compute(
 
 @hydra.main(version_base=None, config_path="/app/", config_name="CONFIG_PREDICT.yaml")
 def main(cfg: DictConfig):
-    
     print(f"PRINTING:{cfg}")
     # Get training config
     version_path = os.path.dirname(os.path.dirname(cfg["model"]["model_path"]))
@@ -445,7 +503,7 @@ def main(cfg: DictConfig):
     param["tolerance"] = cfg["predict"]["tolerance"]
     param["n_self_detected_supports"] = cfg["predict"]["n_self_detected_supports"]
     param["n_subsample"] = cfg["data"]["n_subsample"]
-    
+
     with open(os.path.join(target_path, "param.json"), "w") as fp:
         json.dump(param, fp)
 
@@ -486,6 +544,8 @@ def main(cfg: DictConfig):
         filename = (
             os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
         )
+        # if not "TEL_25-10-17" in filename:
+        #     continue
         (
             result,
             pred_labels,
@@ -500,7 +560,7 @@ def main(cfg: DictConfig):
             support_labels,
             query_spectrograms,
             query_labels,
-            target_path=target_path
+            target_path=target_path,
         )
 
         results = results.append(result)
@@ -539,10 +599,40 @@ def main(cfg: DictConfig):
         index=False,
     )
     print("Evaluation Finished. Results saved to " + target_path)
+    all_csv_files = [
+        file
+        for path_dir, _, _ in os.walk("/data/DCASE/Development_Set/Validation_Set")
+        for file in glob.glob(os.path.join(path_dir, "*.csv"))
+    ]
+    for file in tqdm(all_csv_files):
+        set_type = "Validation_Set"
+        split_list = file.split("/")
+        glob_cls_name = split_list[split_list.index(set_type) + 1]
+        file_name = split_list[split_list.index(set_type) + 2]
+        df = pd.read_csv(file, header=0, index_col=False)
+        file_name_wav = file_name.replace("csv", "wav")
+
+        # get average/min segment length for first five positives
+        for class_column in df:
+            if class_column in ["Audiofilename", "Starttime", "Endtime", "index"]:
+                continue
+            fifth_pos_row = df.index[df[class_column] == "POS"].tolist()[4]
+            results.drop(
+                results[results["Audiofilename"] == file_name_wav][
+                    results[results["Audiofilename"] == file_name_wav]["Starttime"]
+                    < df["Endtime"][fifth_pos_row]
+                ].index,
+                inplace=True,
+            )
+
+    results.to_csv(
+        os.path.join(
+            target_path,
+            "eval_out_skipping_too_early_detections.csv",
+        ),
+        index=False,
+    )
 
 
 if __name__ == "__main__":
-    main(), 
-
-
-
+    main(),

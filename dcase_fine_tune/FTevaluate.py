@@ -363,12 +363,7 @@ def main(cfg: DictConfig):
         filename = (
             os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
         )
-        (
-            result,
-            pred_labels,
-            gt_labels,
-            result_raw,
-        ) = train_predict(
+        (result, pred_labels, gt_labels, result_raw,) = train_predict(
             param,
             meta_df,
             support_spectrograms,

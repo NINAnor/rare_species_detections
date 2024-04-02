@@ -84,14 +84,14 @@ class DCASEDataModule(LightningDataModule):
         samples_weight = np.array([weight[t] for t in data_frame_train["category"]])
         samples_weight = torch.from_numpy(samples_weight)
         samples_weight = samples_weight.double()
-        self.sampler = WeightedRandomSampler(samples_weight, len(samples_weight)*10)
+        self.sampler = WeightedRandomSampler(samples_weight, len(samples_weight) * 10)
 
         # Make the validation set
         data_frame_validation = self.data_frame.loc[validation_indices]
         data_frame_validation.reset_index(drop=True, inplace=True)
 
-        #print(data_frame_train["category"].value_counts())
-        #print(data_frame_validation["category"].value_counts())
+        # print(data_frame_train["category"].value_counts())
+        # print(data_frame_validation["category"].value_counts())
 
         # generate subset based on indices
         self.train_set = TrainAudioDatasetDCASE(
@@ -102,24 +102,14 @@ class DCASEDataModule(LightningDataModule):
         )
 
     def train_dataloader(self):
-<<<<<<< Updated upstream
-        train_loader = DataLoader(self.train_set, 
-                                  batch_size=self.batch_size, 
-                                  num_workers=self.num_workers, 
-                                  pin_memory=False, 
-                                  collate_fn=self.collate_fn,
-                                  sampler=ImbalancedDatasetSampler(self.train_set)       #self.sampler
-                                  )
-=======
         train_loader = DataLoader(
             self.train_set,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=False,
             collate_fn=self.collate_fn,
-            sampler=self.sampler,
+            sampler=ImbalancedDatasetSampler(self.train_set),  # self.sampler
         )
->>>>>>> Stashed changes
         return train_loader
 
     def val_dataloader(self):

@@ -10,6 +10,7 @@ from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
 
 import pytorch_lightning as pl
 
+
 def to_dataframe(features, labels):
     # Load the saved array and map the features and labels into a single dataframe
     input_features = np.load(features)
@@ -121,9 +122,7 @@ def train_model(
         auto_select_gpus=True,
         callbacks=[
             pl.callbacks.LearningRateMonitor(logging_interval="step"),
-            pl.callbacks.EarlyStopping(
-                monitor="train_acc", mode="max", patience=3
-            ),
+            pl.callbacks.EarlyStopping(monitor="train_acc", mode="max", patience=3),
         ],
         default_root_dir="logs/",
         enable_checkpointing=False,
