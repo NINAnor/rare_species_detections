@@ -174,6 +174,7 @@ class BEATs(nn.Module):
         padding_mask: Optional[torch.Tensor] = None,
         fbank_mean: float = 15.41663,
         fbank_std: float = 6.55582,
+        skip_dropout = False
     ):
         # start NOTE FBG: changed input to preprocessed
         # fbank = self.preprocess(source, fbank_mean=fbank_mean, fbank_std=fbank_std)
@@ -200,8 +201,11 @@ class BEATs(nn.Module):
 
         if self.post_extract_proj is not None:
             features = self.post_extract_proj(features)
+        if not skip_dropout:
+            x = self.dropout_input(features)
+        else:
+            x = features
 
-        x = self.dropout_input(features)
 
         x, layer_results = self.encoder(
             x,

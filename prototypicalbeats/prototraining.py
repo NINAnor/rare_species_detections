@@ -163,9 +163,10 @@ class ProtoBEATsModel(pl.LightningModule):
         )
         return z_proto
 
-    def get_embeddings(self, input, padding_mask):
+    def get_embeddings(self, input, padding_mask, skip_dropout=False):
         """Return the embeddings and the padding mask"""
-        return self.model.extract_features(input, padding_mask)
+        self.model.training = self.training
+        return self.model.extract_features(input, padding_mask, skip_dropout=skip_dropout)
 
     def forward(
         self,

@@ -26,8 +26,6 @@ import pytorch_lightning as pl
 
 from callbacks.callbacks import MilestonesFinetuning
 
-from statsmodels.distributions.empirical_distribution import ECDF
-
 from evaluate._utils_writing import write_wav, write_results, plot_2_d_representation
 from evaluate._utils_compute import (
     to_dataframe,
@@ -39,6 +37,7 @@ from evaluate._utils_compute import (
     training,
     predict_labels_query,
     filter_outliers_by_p_values,
+    obtain_cdf,
 )
 
 import hydra
@@ -88,7 +87,7 @@ def compute(
     )
 
     model_type = cfg["model"]["model_type"]
-
+    model.eval()
     # Get the prototypes coordinates
     a = custom_dcasedatamodule.test_dataloader()
     s, sl, _, _, ways = a
@@ -110,7 +109,7 @@ def compute(
     )
 
     if cfg["model"]["model_type"] == "beats":
-        z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None)
+        z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None, skip_dropout=True)
         _, d_supports_to_POS_prototypes = calculate_distance(
             model_type, z_pos_supports, prototypes[pos_index]
         )
@@ -121,7 +120,7 @@ def compute(
         )
         d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
 
-    ecdf = ECDF(d_supports_to_POS_prototypes.detach().numpy())
+    cdf = obtain_cdf(d_supports_to_POS_prototypes.detach().numpy(), cfg["distribution"])
 
     ######################################
     # GET EMBEDDINGS FOR THE NEG SAMPLES #
@@ -138,7 +137,7 @@ def compute(
     # z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
 
     if cfg["model"]["model_type"] == "beats":
-        z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
+        z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None, skip_dropout=True)
     else:
         z_neg_supports = model.get_embeddings(support_samples_neg, padding_mask=None)
 
@@ -169,10 +168,11 @@ def compute(
         frame_shift=frame_shift,
         overlap=cfg["data"]["overlap"],
         pos_index=pos_index,
+        repetitions=cfg["predict"]["repetitions"],
     )
 
     # GET THE PVALUES
-    p_values_pos = 1 - ecdf(distances_to_pos)
+    p_values_pos = 1 - cdf(distances_to_pos)
 
     if cfg["predict"]["self_detect_support"]:
         print("[INFO] SELF DETECTING SUPPORT SAMPLES")
@@ -181,155 +181,159 @@ def compute(
         #########################################################
 
         # Detect POS samples
-        detected_pos_indices = np.where(p_values_pos == 1)[
+        detected_pos_indices = np.where(p_values_pos >= cfg["predict"]["self_detect_threshold_p_value"])[
             0
         ]  # We need to be sure that it is POS samples
         print(f"[INFO] SELF DETECTED {len(detected_pos_indices)} POS SAMPLES")
 
-        # BECAUSE CUDA ERROR WHEN RESAMPLING TOO MANY SAMPLES
-        if len(detected_pos_indices) > 20:
-            detected_pos_indices = np.random.choice(
-                detected_pos_indices, size=20, replace=False
+        if len(detected_pos_indices) > 0:
+            # BECAUSE CUDA ERROR WHEN RESAMPLING TOO MANY SAMPLES
+            if len(detected_pos_indices) > 20:
+                detected_pos_indices = np.random.choice(
+                    detected_pos_indices, size=20, replace=False
+                )
+
+            df_extension_pos = df_query.iloc[detected_pos_indices].copy()
+            df_extension_pos["category"] = "POS"
+
+            # # Detect NEG samples
+            df_neg = df_support[df_support["category"] == "NEG"]
+            num_pos_samples = len(detected_pos_indices)
+
+            if num_pos_samples > 0 and len(df_neg) > num_pos_samples:
+                sampled_neg_indices = np.random.choice(
+                    range(0, len(df_neg)), size=num_pos_samples, replace=False
+                )
+                df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
+                df_extension_neg["category"] = "NEG"
+            else:
+                df_extension_neg = df_neg
+
+            # Append both POS and NEG samples to the support set
+            df_support_extended = df_support.append(
+                [df_extension_pos, df_extension_neg], ignore_index=True
             )
 
-        df_extension_pos = df_query.iloc[detected_pos_indices].copy()
-        df_extension_pos["category"] = "POS"
+            ########################
+            # RECALCULATE THE CDF #
+            ########################
+            print("RE-CALCULATING THE CDF DISTRIBUTION OF THE POS SUPPORT SAMPLES")
+            support_samples_pos = df_support_extended[
+                df_support_extended["category"] == "POS"
+            ]["feature"].to_numpy()
 
-        # # Detect NEG samples
-        df_neg = df_support[df_support["category"] == "NEG"]
-        num_pos_samples = len(detected_pos_indices)
-
-        if num_pos_samples > 0 and len(df_neg) > num_pos_samples:
-            sampled_neg_indices = np.random.choice(
-                range(0, len(df_neg)), size=num_pos_samples, replace=False
+            support_samples_pos = reshape_support(
+                support_samples_pos,
+                tensor_length=cfg["data"]["tensor_length"],
+                n_subsample=cfg["predict"]["n_subsample"],
             )
-            df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
-            df_extension_neg["category"] = "NEG"
+
+            if cfg["model"]["model_type"] == "beats":
+                z_pos_supports, _ = model.get_embeddings(
+                    support_samples_pos.to("cuda"), padding_mask=None, skip_dropout=True
+                )
+                _, d_supports_to_POS_prototypes = calculate_distance(
+                    model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
+                )
+            else:
+                z_pos_supports = model.get_embeddings(
+                    support_samples_pos.to("cuda"), padding_mask=None
+                )
+                _, d_supports_to_POS_prototypes = calculate_distance(
+                    model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
+                )
+                d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
+
+            cdf = obtain_cdf(d_supports_to_POS_prototypes.to("cpu").detach().numpy(), cfg["distribution"])
+
+            ##############################################################
+            # CHANGE THE NUMBER OF SUPPORTS AND QUERY TO A CERTAIN RATIO #
+            ##############################################################
+
+            support_to_query_ratio = 1.5
+
+            # Calculate the total number of samples for each category (POS and NEG)
+            num_pos_samples = len(
+                df_support_extended[df_support_extended["category"] == "POS"]
+            )
+            num_neg_samples = len(
+                df_support_extended[df_support_extended["category"] == "NEG"]
+            )
+
+            # Assuming an equal distribution of samples between support and query for simplicity
+            total_samples_per_class = min(num_pos_samples, num_neg_samples)
+            print(f"TOTAL SLOT PER CLASS {total_samples_per_class}")
+
+            # Calculate n_shot and n_query based on the desired ratio
+            # The total should not exceed the total_samples_per_class for each category
+            total_slots_per_class = total_samples_per_class / (1 + support_to_query_ratio)
+            n_query = int(
+                total_slots_per_class
+            )  # Round down to ensure we do not exceed the available samples
+            n_shot = total_samples_per_class-n_query
+
+            print(f"[INFO] Retraining with n_support={n_shot} and n_query={n_query}")
+
+            # Update the DCASEDataModule with the new n_shot and n_query values
+            custom_dcasedatamodule = DCASEDataModule(
+                data_frame=df_support_extended,
+                tensor_length=cfg["data"]["tensor_length"],
+                n_shot=n_shot,
+                n_query=n_query,
+                n_subsample=cfg["data"]["n_subsample"],
+            )
+
+            label_dic = custom_dcasedatamodule.get_label_dic()
+            pos_index = label_dic["POS"]
+
+            ####################
+            # RETAIN THE MODEL #
+            ####################
+            print("[INFO] RE-TRAINING THE MODEL FOR {}".format(filename))
+            model.train()
+            model = training(
+                model_type=cfg["model"]["model_type"],
+                pretrained_model=cfg["model"]["model_path"],
+                state=cfg["model"]["state"],
+                custom_datamodule=custom_dcasedatamodule,
+                max_epoch=cfg["trainer"]["max_epochs"],
+                beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
+            )
+            model.eval()
+            # Get the prototypes coordinates
+            a = custom_dcasedatamodule.test_dataloader()
+            s, sl, _, _, ways = a
+            prototypes, z_supports = get_proto_coordinates(
+                model, model_type, s, sl, n_way=len(ways)
+            )
+
+            ##############
+            # RE-PREDICT #
+            ##############
+            (
+                predicted_labels,
+                labels,
+                begins,
+                ends,
+                distances_to_pos,
+                q_embeddings,
+            ) = predict_labels_query(
+                model,
+                model_type,
+                z_supports,
+                queryLoader,
+                prototypes,
+                tensor_length=cfg["data"]["tensor_length"],
+                frame_shift=frame_shift,
+                overlap=cfg["data"]["overlap"],
+                pos_index=pos_index,
+                repetitions=cfg["predict"]["repetitions"],
+            )
         else:
-            df_extension_neg = df_neg
-
-        # Append both POS and NEG samples to the support set
-        df_support_extended = df_support.append(
-            [df_extension_pos, df_extension_neg], ignore_index=True
-        )
-
-        ########################
-        # RECALCULATE THE ECDF #
-        ########################
-        print("RE-CALCULATING THE ECDF DISTRIBUTION OF THE POS SUPPORT SAMPLES")
-        support_samples_pos = df_support_extended[
-            df_support_extended["category"] == "POS"
-        ]["feature"].to_numpy()
-
-        support_samples_pos = reshape_support(
-            support_samples_pos,
-            tensor_length=cfg["data"]["tensor_length"],
-            n_subsample=cfg["predict"]["n_subsample"],
-        )
-
-        if cfg["model"]["model_type"] == "beats":
-            z_pos_supports, _ = model.get_embeddings(
-                support_samples_pos.to("cuda"), padding_mask=None
-            )
-            _, d_supports_to_POS_prototypes = calculate_distance(
-                model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
-            )
-        else:
-            z_pos_supports = model.get_embeddings(
-                support_samples_pos.to("cuda"), padding_mask=None
-            )
-            _, d_supports_to_POS_prototypes = calculate_distance(
-                model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
-            )
-            d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
-
-        ecdf = ECDF(d_supports_to_POS_prototypes.to("cpu").detach().numpy())
-
-        ##############################################################
-        # CHANGE THE NUMBER OF SUPPORTS AND QUERY TO A CERTAIN RATIO #
-        ##############################################################
-
-        support_to_query_ratio = 1.5
-
-        # Calculate the total number of samples for each category (POS and NEG)
-        num_pos_samples = len(
-            df_support_extended[df_support_extended["category"] == "POS"]
-        )
-        num_neg_samples = len(
-            df_support_extended[df_support_extended["category"] == "NEG"]
-        )
-
-        # Assuming an equal distribution of samples between support and query for simplicity
-        total_samples_per_class = min(num_pos_samples, num_neg_samples)
-        print(f"TOTAL SLOT PER CLASS {total_samples_per_class}")
-
-        # Calculate n_shot and n_query based on the desired ratio
-        # The total should not exceed the total_samples_per_class for each category
-        total_slots_per_class = total_samples_per_class / (1 + support_to_query_ratio)
-        n_query = int(
-            total_slots_per_class
-        )  # Round down to ensure we do not exceed the available samples
-        n_shot = int(total_slots_per_class * support_to_query_ratio)
-
-        print(f"[INFO] Retraining with n_support={n_shot} and n_query={n_query}")
-
-        # Update the DCASEDataModule with the new n_shot and n_query values
-        custom_dcasedatamodule = DCASEDataModule(
-            data_frame=df_support_extended,
-            tensor_length=cfg["data"]["tensor_length"],
-            n_shot=n_shot,
-            n_query=n_query,
-            n_subsample=cfg["data"]["n_subsample"],
-        )
-
-        label_dic = custom_dcasedatamodule.get_label_dic()
-        pos_index = label_dic["POS"]
-
-        ####################
-        # RETAIN THE MODEL #
-        ####################
-        print("[INFO] RE-TRAINING THE MODEL FOR {}".format(filename))
-
-        model = training(
-            model_type=cfg["model"]["model_type"],
-            pretrained_model=cfg["model"]["model_path"],
-            state=cfg["model"]["state"],
-            custom_datamodule=custom_dcasedatamodule,
-            max_epoch=cfg["trainer"]["max_epochs"],
-            beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
-        )
-
-        # Get the prototypes coordinates
-        a = custom_dcasedatamodule.test_dataloader()
-        s, sl, _, _, ways = a
-        prototypes, z_supports = get_proto_coordinates(
-            model, model_type, s, sl, n_way=len(ways)
-        )
-
-        ##############
-        # RE-PREDICT #
-        ##############
-        (
-            predicted_labels,
-            labels,
-            begins,
-            ends,
-            distances_to_pos,
-            q_embeddings,
-        ) = predict_labels_query(
-            model,
-            model_type,
-            z_supports,
-            queryLoader,
-            prototypes,
-            tensor_length=cfg["data"]["tensor_length"],
-            frame_shift=frame_shift,
-            overlap=cfg["data"]["overlap"],
-            pos_index=pos_index,
-        )
+            print("SKIPPING SELF LEARNING DUE TO LACK OF DETECTIONS")
 
     # Get the updated pvalues
-    p_values_pos = 1 - ecdf(distances_to_pos)
+    p_values_pos = 1 - cdf(distances_to_pos)
 
     # Filter by pvalues
     if cfg["predict"]["filter_by_p_value"]:
@@ -399,6 +403,7 @@ def compute(
         tolerence=cfg["tolerance"],
         tensor_length=cfg["data"]["tensor_length"],
         frame_shift=frame_shift,
+        occurence_threshold=cfg["occurence_threshold"],
     )
 
     # Add the filename
@@ -503,7 +508,8 @@ def main(cfg: DictConfig):
     param["tolerance"] = cfg["predict"]["tolerance"]
     param["n_self_detected_supports"] = cfg["predict"]["n_self_detected_supports"]
     param["n_subsample"] = cfg["data"]["n_subsample"]
-
+    param["occurence_threshold"] = cfg["predict"]["occurence_threshold"]
+    param["distribution"] = cfg["predict"]["distribution"]
     with open(os.path.join(target_path, "param.json"), "w") as fp:
         json.dump(param, fp)
 

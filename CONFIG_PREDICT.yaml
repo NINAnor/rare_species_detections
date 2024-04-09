@@ -54,14 +54,18 @@ model:
 # PARAMETERS FOR MODEL PREDICTION #
 ###################################
 predict:
-  wav_save: False
+  wav_save: True
   overwrite: True
   n_self_detected_supports: 0
-  tolerance: 0
+  tolerance: 1
   n_subsample: 1 # Whether each segment should be subsampled
-  self_detect_support: False # Whether to use the self-training loop
-  filter_by_p_value: False # Whether we filter outliers by their pvalues
+  self_detect_support: True # Whether to use the self-training loop
+  filter_by_p_value: True # Whether we filter outliers by their pvalues
   threshold_p_value: 0.1
+  self_detect_threshold_p_value: 0.95
+  occurence_threshold: 1 # min number of consequetive frames for a postive to be included
+  distribution: ecdf # name of distribution, ecdf or norm
+  repetitions: 1 # number of times to feed Beats same feature (no longer useful)
 
 plot:
   tsne: True
