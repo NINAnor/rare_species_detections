@@ -98,6 +98,7 @@ def main(cfg: DictConfig):
         tensor_length=cfg["data"]["tensor_length"],
         test_size=cfg["trainer"]["test_size"],
         min_sample_per_category=cfg["trainer"]["min_sample_per_category"],
+        remove_WMW=cfg["trainer"]["remove_WMW"],
     )
 
     # create the model object

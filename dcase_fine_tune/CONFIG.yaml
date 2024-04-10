@@ -34,12 +34,13 @@ trainer:
   gpus: 1
   batch_size: 64
   num_workers: 4
-  patience: 10
-  min_sample_per_category: 10
+  patience: 50
+  min_sample_per_category: 100
   test_size: 0.2
+  remove_WMW: True
 
 model:
-  lr: 1.0e-05
+  lr: 1.0e-06
   ft_entire_network: True
   num_target_classes: 2
   model_path: "/data/models/BEATs/BEATs_iter3_plus_AS2M.pt"

@@ -45,6 +45,7 @@ class DCASEDataModule(LightningDataModule):
         tensor_length=128,
         test_size=0,
         min_sample_per_category=5,
+        remove_WMW=False,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -54,21 +55,35 @@ class DCASEDataModule(LightningDataModule):
         self.tensor_length = tensor_length
         self.test_size = test_size
         self.min_sample_per_category = min_sample_per_category
+        self.remove_WMW = remove_WMW
+
+        # remove WMW classes if desired
+        if remove_WMW:
+            print("REMOVING WMW SAMPLES FROM TRAINING DATA")
+            self.data_frame.drop(
+                self.data_frame[self.data_frame["category"].str.contains("c_")].index,
+                inplace=True,
+            )
+            self.data_frame.reset_index(inplace=True)
+
+        # remove classes with too few samples
+        if min_sample_per_category > 0:
+            removals = self.data_frame["category"].value_counts().reset_index()
+            removals = removals[removals["category"] < min_sample_per_category][
+                "index"
+            ].values
+            print("REMOVING FOLLOWING CLASSES WITH TOO FEW SAMPLES:")
+            print(removals)
+            self.data_frame.drop(
+                self.data_frame[self.data_frame["category"].isin(removals)].index,
+                inplace=True,
+            )
+            self.data_frame.reset_index(inplace=True)
 
         # encode labels
         self.data_frame["category"] = LabelEncoder().fit_transform(
             self.data_frame["category"]
         )
-        # remove classes with too few samples
-        removals = self.data_frame["category"].value_counts().reset_index()
-        removals = removals[removals["category"] < min_sample_per_category][
-            "index"
-        ].values
-        self.data_frame.drop(
-            self.data_frame[self.data_frame["category"].isin(removals)].index,
-            inplace=True,
-        )
-        self.data_frame.reset_index(inplace=True)
 
         # init dataset and divide into train&val
         self.complete_dataset = TrainAudioDatasetDCASE(data_frame=self.data_frame)
