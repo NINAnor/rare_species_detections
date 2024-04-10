@@ -109,7 +109,9 @@ def compute(
     )
 
     if cfg["model"]["model_type"] == "beats":
-        z_pos_supports, _ = model.get_embeddings(support_samples_pos, padding_mask=None, skip_dropout=True)
+        z_pos_supports, _ = model.get_embeddings(
+            support_samples_pos, padding_mask=None, skip_dropout=True
+        )
         _, d_supports_to_POS_prototypes = calculate_distance(
             model_type, z_pos_supports, prototypes[pos_index]
         )
@@ -137,7 +139,9 @@ def compute(
     # z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None)
 
     if cfg["model"]["model_type"] == "beats":
-        z_neg_supports, _ = model.get_embeddings(support_samples_neg, padding_mask=None, skip_dropout=True)
+        z_neg_supports, _ = model.get_embeddings(
+            support_samples_neg, padding_mask=None, skip_dropout=True
+        )
     else:
         z_neg_supports = model.get_embeddings(support_samples_neg, padding_mask=None)
 
@@ -181,7 +185,9 @@ def compute(
         #########################################################
 
         # Detect POS samples
-        detected_pos_indices = np.where(p_values_pos >= cfg["predict"]["self_detect_threshold_p_value"])[
+        detected_pos_indices = np.where(
+            p_values_pos >= cfg["predict"]["self_detect_threshold_p_value"]
+        )[
             0
         ]  # We need to be sure that it is POS samples
         print(f"[INFO] SELF DETECTED {len(detected_pos_indices)} POS SAMPLES")
@@ -233,18 +239,25 @@ def compute(
                     support_samples_pos.to("cuda"), padding_mask=None, skip_dropout=True
                 )
                 _, d_supports_to_POS_prototypes = calculate_distance(
-                    model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
+                    model_type,
+                    z_pos_supports.to("cuda"),
+                    prototypes[pos_index].to("cuda"),
                 )
             else:
                 z_pos_supports = model.get_embeddings(
                     support_samples_pos.to("cuda"), padding_mask=None
                 )
                 _, d_supports_to_POS_prototypes = calculate_distance(
-                    model_type, z_pos_supports.to("cuda"), prototypes[pos_index].to("cuda")
+                    model_type,
+                    z_pos_supports.to("cuda"),
+                    prototypes[pos_index].to("cuda"),
                 )
                 d_supports_to_POS_prototypes = d_supports_to_POS_prototypes.squeeze()
 
-            cdf = obtain_cdf(d_supports_to_POS_prototypes.to("cpu").detach().numpy(), cfg["distribution"])
+            cdf = obtain_cdf(
+                d_supports_to_POS_prototypes.to("cpu").detach().numpy(),
+                cfg["distribution"],
+            )
 
             ##############################################################
             # CHANGE THE NUMBER OF SUPPORTS AND QUERY TO A CERTAIN RATIO #
@@ -266,11 +279,13 @@ def compute(
 
             # Calculate n_shot and n_query based on the desired ratio
             # The total should not exceed the total_samples_per_class for each category
-            total_slots_per_class = total_samples_per_class / (1 + support_to_query_ratio)
+            total_slots_per_class = total_samples_per_class / (
+                1 + support_to_query_ratio
+            )
             n_query = int(
                 total_slots_per_class
             )  # Round down to ensure we do not exceed the available samples
-            n_shot = total_samples_per_class-n_query
+            n_shot = total_samples_per_class - n_query
 
             print(f"[INFO] Retraining with n_support={n_shot} and n_query={n_query}")
 

@@ -25,7 +25,9 @@ def to_dataframe(features, labels):
 
 def get_proto_coordinates(model, model_type, support_data, support_labels, n_way):
     if model_type == "beats":
-        z_supports, _ = model.get_embeddings(support_data, padding_mask=None, skip_dropout=True)
+        z_supports, _ = model.get_embeddings(
+            support_data, padding_mask=None, skip_dropout=True
+        )
     else:
         z_supports = model.get_embeddings(support_data, padding_mask=None)
 
@@ -81,7 +83,7 @@ def merge_preds(df, tolerence, tensor_length, frame_shift, occurence_threshold):
         ).shift()
     ).cumsum()
     ids, occurence = np.unique(df["group"], return_counts=True)
-    ids_too_short_segments = ids[occurence<occurence_threshold]
+    ids_too_short_segments = ids[occurence < occurence_threshold]
     df.drop(df[df.group.isin(ids_too_short_segments)].index, inplace=True)
     result = df.groupby("group").agg({"Starttime": "min", "Endtime": "max"})
     return result
@@ -172,7 +174,7 @@ def predict_labels_query(
     frame_shift,
     overlap,
     pos_index,
-    repetitions=1
+    repetitions=1,
 ):
     """
     - l_segment to know the length of the segment
@@ -195,11 +197,13 @@ def predict_labels_query(
         feature, label = data
         feature = feature.to("cuda")
 
-        l_dists = torch.empty(size=(repetitions,2))
-        l_classification_scores = torch.empty(size=(repetitions,2))
+        l_dists = torch.empty(size=(repetitions, 2))
+        l_classification_scores = torch.empty(size=(repetitions, 2))
         for rep_i in range(repetitions):
             if model_type == "beats":
-                q_embedding, _ = model.get_embeddings(feature, padding_mask=None, skip_dropout=True)
+                q_embedding, _ = model.get_embeddings(
+                    feature, padding_mask=None, skip_dropout=True
+                )
             else:
                 q_embedding = model.get_embeddings(feature, padding_mask=None)
 
@@ -211,11 +215,11 @@ def predict_labels_query(
             if model_type != "beats":
                 dists = dists.squeeze()
                 classification_scores = classification_scores.squeeze()
-            
+
             l_dists[rep_i] = dists
             l_classification_scores[rep_i] = classification_scores
         dists = torch.mean(l_dists, dim=0)
-        classification_scores=torch.mean(l_classification_scores, dim=0)
+        classification_scores = torch.mean(l_classification_scores, dim=0)
 
         # Calculate beginTime and endTime for each segment
         # We multiply by 1000 to get the time in seconds
@@ -225,8 +229,6 @@ def predict_labels_query(
         else:
             begin = i * tensor_length * frame_shift * overlap / 1000
             end = begin + tensor_length * frame_shift / 1000
-
-
 
         # Get the labels (either POS or NEG):
         predicted_labels = torch.max(classification_scores, 0)[
@@ -263,11 +265,15 @@ def filter_outliers_by_p_values(Y, p_values, target_class=1, upper_threshold=0.0
 
     return Y
 
+
 def obtain_cdf(d_supports_to_POS_prototypes, distribution_name):
     if distribution_name == "ecdf":
         cdf = ECDF(d_supports_to_POS_prototypes)
     elif distribution_name == "norm":
-        cdf = norm(loc=np.mean(d_supports_to_POS_prototypes), scale=np.std(d_supports_to_POS_prototypes)).cdf
+        cdf = norm(
+            loc=np.mean(d_supports_to_POS_prototypes),
+            scale=np.std(d_supports_to_POS_prototypes),
+        ).cdf
     else:
         raise
     return cdf

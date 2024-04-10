@@ -51,11 +51,18 @@ class ProtoBEATsModel(pl.LightningModule):
 
         if model_path != "None":
             self.checkpoint = torch.load(model_path)
-            if self.state == "validate":
+            if self.state == "validate" or self.state == "finetuned":
+                if self.state == "validate":
+                    model_name_to_replace = "model."
+                elif self.state == "finetuned":
+                    model_name_to_replace = "beats."
+
                 self.adjusted_state_dict = OrderedDict()
                 for k, v in self.checkpoint["state_dict"].items():
                     # Check if the key starts with 'module.' and remove it only then
-                    name = k[6:] if k.startswith("model.") else k
+                    if "predictor" in k:
+                        continue
+                    name = k[6:] if k.startswith(model_name_to_replace) else k
                     self.adjusted_state_dict[name] = v
 
         self._build_model()
@@ -91,12 +98,11 @@ class ProtoBEATsModel(pl.LightningModule):
                 }
             )
             self.model = BEATs(self.cfg)
-
             if self.state == "train":
                 print("LOADING AUDIOSET PRE-TRAINED MODEL")
                 self.model.load_state_dict(self.checkpoint["model"])
 
-            if self.state == "validate":
+            if self.state == "validate" or self.state == "finetuned":
                 print("LOADING THE FINE-TUNED MODEL")
                 self.model.load_state_dict(self.adjusted_state_dict, strict=True)
 
@@ -166,7 +172,9 @@ class ProtoBEATsModel(pl.LightningModule):
     def get_embeddings(self, input, padding_mask, skip_dropout=False):
         """Return the embeddings and the padding mask"""
         self.model.training = self.training
-        return self.model.extract_features(input, padding_mask, skip_dropout=skip_dropout)
+        return self.model.extract_features(
+            input, padding_mask, skip_dropout=skip_dropout
+        )
 
     def forward(
         self,

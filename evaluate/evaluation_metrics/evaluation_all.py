@@ -19,7 +19,6 @@ UNK_VALUE = "UNK"
 
 
 def remove_shots_from_ref(ref_df, number_shots=5):
-
     ref_pos_indexes = select_events_with_value(ref_df, value=POS_VALUE)
     ref_n_shot_index = ref_pos_indexes[number_shots - 1]
     # remove all events (pos and UNK) that happen before this 5th event
@@ -31,14 +30,12 @@ def remove_shots_from_ref(ref_df, number_shots=5):
 
 
 def select_events_with_value(data_frame, value=POS_VALUE):
-
     indexes_list = data_frame.index[data_frame["Q"] == value].tolist()
 
     return indexes_list
 
 
 def build_matrix_from_selected_rows(data_frame, selected_indexes_list):
-
     matrix_data = np.ones((2, len(selected_indexes_list))) * -1
     for n, idx in enumerate(selected_indexes_list):
         matrix_data[0, n] = data_frame.loc[idx].Starttime  # start time for event n
@@ -98,7 +95,6 @@ def compute_tp_fp_fn(pred_events_df, ref_events_df):
 
 
 def compute_scores_per_class(counts_per_class):
-
     scores_per_class = {}
     for cl in counts_per_class.keys():
         tp = counts_per_class[cl]["TP"]
@@ -143,7 +139,6 @@ def compute_scores_from_counts(counts):
 
 
 def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metadata=[]):
-
     print("\nEvaluation for:", team_name, dataset)
     # read Gt file structure: get subsets and paths for ref csvs make an inverted dictionary with audiofilenames as keys and folder as value
     gt_file_structure = {}
@@ -173,7 +168,6 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
 
     counts_per_audiofile = {}
     for audiofilename in list(pred_events_by_audiofile.keys()):
-
         # for each audiofile, load correcponding GT File (audiofilename.csv)
         ref_events_this_audiofile_all = pd.read_csv(
             os.path.join(
@@ -322,7 +316,6 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
             fp = 0
             total_n_pos_events_this_set = 0
             for audiofile in list_audiofiles_in_set:
-
                 scores_per_audiofile[audiofile] = compute_scores_from_counts(
                     counts_per_audiofile[audiofile]
                 )
@@ -361,7 +354,6 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
 
 
 if __name__ == "__main__":
-
     all_files = glob.glob(
         "/data/DCASEfewshot/validate/d8f698b184e75c3ef4e830f9da4f148071fb4c56/results/baseline/version_0/**/eval_out.csv",
         recursive=True,
@@ -370,7 +362,6 @@ if __name__ == "__main__":
     l_fscores = []
 
     for file in all_files:
-
         fscore = evaluate(
             pred_file_path=file,
             ref_file_path="/data/DCASE/Development_Set_annotations/Validation_Set",

@@ -60,17 +60,19 @@ class DCASEDataModule(LightningDataModule):
             self.data_frame["category"]
         )
         # remove classes with too few samples
-        removals = self.data_frame['category'].value_counts().reset_index()
-        removals = removals[removals['category'] < min_sample_per_category]['index'].values
-        self.data_frame.drop(self.data_frame[self.data_frame["category"].isin(removals)].index, inplace=True)
+        removals = self.data_frame["category"].value_counts().reset_index()
+        removals = removals[removals["category"] < min_sample_per_category][
+            "index"
+        ].values
+        self.data_frame.drop(
+            self.data_frame[self.data_frame["category"].isin(removals)].index,
+            inplace=True,
+        )
         self.data_frame.reset_index(inplace=True)
 
         # init dataset and divide into train&val
         self.complete_dataset = TrainAudioDatasetDCASE(data_frame=self.data_frame)
         self.divide_train_val()
-
-
-
 
     def divide_train_val(self):
         # Separate into training and validation set

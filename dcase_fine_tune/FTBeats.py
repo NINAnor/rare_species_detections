@@ -46,12 +46,10 @@ class BEATsTransferLearningModel(pl.LightningModule):
         self._build_model()
 
         self.train_acc = Accuracy(
-            task="multiclass", 
-            num_classes=self.num_target_classes
+            task="multiclass", num_classes=self.num_target_classes
         )
         self.valid_acc = Accuracy(
-            task="multiclass", 
-            num_classes=self.num_target_classes
+            task="multiclass", num_classes=self.num_target_classes
         )
         self.save_hyperparameters()
 
@@ -65,7 +63,9 @@ class BEATsTransferLearningModel(pl.LightningModule):
         # 2. Classifier
         print(f"Classifier has {self.num_target_classes} output neurons")
         self.beats.predictor_dropout = nn.Dropout(self.cfg.predictor_dropout)
-        self.beats.predictor = nn.Linear(self.cfg.encoder_embed_dim, self.cfg.predictor_class)
+        self.beats.predictor = nn.Linear(
+            self.cfg.encoder_embed_dim, self.cfg.predictor_class
+        )
         # self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.num_target_classes)
 
     def extract_features(self, x, padding_mask=None):
@@ -132,7 +132,10 @@ class BEATsTransferLearningModel(pl.LightningModule):
             )
         else:
             optimizer = optim.AdamW(
-                self.beats.predictor.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
+                self.beats.predictor.parameters(),
+                lr=self.lr,
+                betas=(0.9, 0.98),
+                weight_decay=0.01,
             )
 
         return optimizer
