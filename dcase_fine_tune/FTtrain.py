@@ -3,7 +3,7 @@ import numpy as np
 import hashlib
 import pandas as pd
 import json
-
+from datetime import datetime 
 import pytorch_lightning as pl
 
 from dcase_fine_tune.FTBeats import BEATsTransferLearningModel
@@ -33,7 +33,14 @@ def train_model(
             pl.callbacks.LearningRateMonitor(logging_interval="step"),
             pl.callbacks.EarlyStopping(
                 monitor="train_loss", mode="min", patience=patience
-            ),
+            ), 
+            pl.callbacks.ModelCheckpoint(
+                os.path.join("lightning_logs", "finetuning","{date:%Y%m%d_%H%M%S}".format(date=datetime.now())),
+                monitor="val_loss",
+                mode="min",
+                save_top_k=1,
+                verbose=True,
+            )
         ],
         default_root_dir=root_dir,
         enable_checkpointing=True,

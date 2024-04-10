@@ -55,15 +55,22 @@ class DCASEDataModule(LightningDataModule):
         self.test_size = test_size
         self.min_sample_per_category = min_sample_per_category
 
-        self.setup()
-        self.divide_train_val()
-
-    def setup(self, stage=None):
-        # load data
+        # encode labels
         self.data_frame["category"] = LabelEncoder().fit_transform(
             self.data_frame["category"]
         )
+        # remove classes with too few samples
+        removals = self.data_frame['category'].value_counts().reset_index()
+        removals = removals[removals['category'] < min_sample_per_category]['index'].values
+        self.data_frame.drop(self.data_frame[self.data_frame["category"].isin(removals)].index, inplace=True)
+        self.data_frame.reset_index(inplace=True)
+
+        # init dataset and divide into train&val
         self.complete_dataset = TrainAudioDatasetDCASE(data_frame=self.data_frame)
+        self.divide_train_val()
+
+
+
 
     def divide_train_val(self):
         # Separate into training and validation set
@@ -144,50 +151,50 @@ class DCASEDataModule(LightningDataModule):
         return (all_images, all_labels)
 
 
-class AudioDatasetDCASE(Dataset):
-    def __init__(
-        self,
-        data_frame,
-        label_dict=None,
-    ):
-        self.data_frame = data_frame
-        self.label_encoder = LabelEncoder()
-        if label_dict is not None:
-            self.label_encoder.fit(list(label_dict.keys()))
-            self.label_dict = label_dict
-        else:
-            self.label_encoder.fit(self.data_frame["category"])
-            self.label_dict = dict(
-                zip(
-                    self.label_encoder.classes_,
-                    self.label_encoder.transform(self.label_encoder.classes_),
-                )
-            )
+# class AudioDatasetDCASE(Dataset):
+#     def __init__(
+#         self,
+#         data_frame,
+#         label_dict=None,
+#     ):
+#         self.data_frame = data_frame
+#         self.label_encoder = LabelEncoder()
+#         if label_dict is not None:
+#             self.label_encoder.fit(list(label_dict.keys()))
+#             self.label_dict = label_dict
+#         else:
+#             self.label_encoder.fit(self.data_frame["category"])
+#             self.label_dict = dict(
+#                 zip(
+#                     self.label_encoder.classes_,
+#                     self.label_encoder.transform(self.label_encoder.classes_),
+#                 )
+#             )
 
-    def __len__(self):
-        return len(self.data_frame)
+#     def __len__(self):
+#         return len(self.data_frame)
 
-    def get_labels(self):
-        labels = []
+#     def get_labels(self):
+#         labels = []
 
-        for i in range(0, len(self.data_frame)):
-            label = self.data_frame.iloc[i]["category"]
-            label = self.label_encoder.transform([label])[0]
-            labels.append(label)
+#         for i in range(0, len(self.data_frame)):
+#             label = self.data_frame.iloc[i]["category"]
+#             label = self.label_encoder.transform([label])[0]
+#             labels.append(label)
 
-        return labels
+#         return labels
 
-    def __getitem__(self, idx):
-        input_feature = torch.Tensor(self.data_frame.iloc[idx]["feature"])
-        label = self.data_frame.iloc[idx]["category"]
+#     def __getitem__(self, idx):
+#         input_feature = torch.Tensor(self.data_frame.iloc[idx]["feature"])
+#         label = self.data_frame.iloc[idx]["category"]
 
-        # Encode label as integer
-        label = self.label_encoder.transform([label])[0]
+#         # Encode label as integer
+#         label = self.label_encoder.transform([label])[0]
 
-        return input_feature, label
+#         return input_feature, label
 
-    def get_label_dict(self):
-        return self.label_dict
+#     def get_label_dict(self):
+#         return self.label_dict
 
 
 class predictLoader:

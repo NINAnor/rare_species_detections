@@ -46,10 +46,12 @@ class BEATsTransferLearningModel(pl.LightningModule):
         self._build_model()
 
         self.train_acc = Accuracy(
-            task="multiclass", num_classes=self.num_target_classes
+            task="multiclass", 
+            num_classes=self.num_target_classes
         )
         self.valid_acc = Accuracy(
-            task="multiclass", num_classes=self.num_target_classes
+            task="multiclass", 
+            num_classes=self.num_target_classes
         )
         self.save_hyperparameters()
 
@@ -62,7 +64,9 @@ class BEATsTransferLearningModel(pl.LightningModule):
 
         # 2. Classifier
         print(f"Classifier has {self.num_target_classes} output neurons")
-        self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.num_target_classes)
+        self.beats.predictor_dropout = nn.Dropout(self.cfg.predictor_dropout)
+        self.beats.predictor = nn.Linear(self.cfg.encoder_embed_dim, self.cfg.predictor_class)
+        # self.fc = nn.Linear(self.cfg.encoder_embed_dim, self.num_target_classes)
 
     def extract_features(self, x, padding_mask=None):
         if padding_mask != None:
@@ -81,10 +85,10 @@ class BEATsTransferLearningModel(pl.LightningModule):
             x, _ = self.beats.extract_features(x)
 
         # Get the logits
-        x = self.fc(x)
+        # x = self.fc(x)
 
         # Mean pool the second dimension (these are the tokens)
-        x = x.mean(dim=1)
+        # x = x.mean(dim=1)
 
         return x
 
@@ -120,14 +124,15 @@ class BEATsTransferLearningModel(pl.LightningModule):
     def configure_optimizers(self):
         if self.ft_entire_network:
             optimizer = optim.AdamW(
-                [{"params": self.beats.parameters()}, {"params": self.fc.parameters()}],
+                self.beats.parameters(),
+                # [{"params": self.beats.parameters()}, {"params": self.fc.parameters()}],
                 lr=self.lr,
                 betas=(0.9, 0.98),
                 weight_decay=0.01,
             )
         else:
             optimizer = optim.AdamW(
-                self.fc.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
+                self.beats.predictor.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
             )
 
         return optimizer
