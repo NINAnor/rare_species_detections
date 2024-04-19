@@ -44,7 +44,7 @@ def write_wav(
     for f in files:
         if os.path.basename(f) == filename:
             print(os.path.basename(f))
-            print(filename)
+            # print(filename)
             arr, fs_orig = librosa.load(f, sr=None, mono=True)
             break
 
@@ -64,6 +64,8 @@ def write_wav(
             / 1000
         ),
     )
+    gt_labels = gt_labels.astype(np.float32)
+    gt_labels[gt_labels==2] = 0.5
     pred_labels = np.repeat(
         pred_labels.T,
         int(
@@ -135,7 +137,10 @@ def write_wav(
     result_wav = np.vstack(
         (arr, gt_labels, merged_pred, pred_labels, distances_to_pos / 10, z_scores_pos)
     )
-    wavfile.write(output, target_fs, result_wav.T)
+    try:
+        wavfile.write(output, target_fs, result_wav.T)
+    except:
+        print("Writing wavfile failed.")
 
 
 def plot_2_d_representation(

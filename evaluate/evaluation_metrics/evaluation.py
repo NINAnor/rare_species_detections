@@ -241,6 +241,7 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
             "FP": fp_count,
             "FN": fn_count,
             "total_n_pos_events": total_n_events_in_audiofile,
+            "F1": 2*tp_count / (2*tp_count + fp_count + fn_count)
         }
         print(audiofilename, counts_per_audiofile[audiofilename])
 
@@ -282,6 +283,7 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
                 "FP": 0,
                 "FN": total_n_pos_events_in_audiofile,
                 "total_n_pos_events": total_n_pos_events_in_audiofile,
+
             }
 
     # aggregate the counts per class or subset:
@@ -336,12 +338,14 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
                     "FN": fn,
                     "FP": fp,
                     "total_n_pos_events_this_class": total_n_pos_events_this_class,
+                    "F1": 2*tp / (2*tp + fp + fn)
                 }
                 counts_per_set[data_set] = {
                     "TP": tp_set,
                     "FN": fn_set,
                     "FP": fp_set,
                     "total_n_pos_events_this_set": total_n_events_set,
+                    "F1": 2*tp_set / (2*tp_set + fp_set + fn_set)
                 }
 
             #  compute scores per subset.
@@ -375,6 +379,7 @@ def evaluate(pred_file_path, ref_file_path, team_name, dataset, savepath, metada
                     "FN": fn,
                     "FP": fp,
                     "total_n_pos_events_this_set": total_n_pos_events_this_set,
+                    "F1": 2*tp / (2*tp + fp + fn)
                 }
 
             #  compute scores per subset

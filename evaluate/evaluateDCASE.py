@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 from copy import deepcopy
 from tqdm import tqdm
 
-from prototypicalbeats.prototraining import ProtoBEATsModel
+# from prototypicalbeats.prototraining import ProtoBEATsModel
 from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
 
 import pytorch_lightning as pl
@@ -63,7 +63,7 @@ def compute(
     assert filename in query_labels
 
     df_support = to_dataframe(support_spectrograms, support_labels)
-
+    assert np.any(df_support["category"] == "UNK") == False
     custom_dcasedatamodule = DCASEDataModule(
         data_frame=df_support,
         tensor_length=cfg["data"]["tensor_length"],
@@ -74,7 +74,7 @@ def compute(
     )
     label_dic = custom_dcasedatamodule.get_label_dic()
     pos_index = label_dic["POS"]
-
+    neg_index = label_dic["NEG"]
     # Train the model with the support data
     print("[INFO] TRAINING THE MODEL FOR {}".format(filename))
     model = training(
@@ -84,6 +84,7 @@ def compute(
         custom_datamodule=custom_dcasedatamodule,
         max_epoch=cfg["trainer"]["max_epochs"],
         beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
+        ft_entire_network=cfg["model"]["ft_entire_network"],
     )
 
     model_type = cfg["model"]["model_type"]
@@ -147,6 +148,8 @@ def compute(
 
     ### Get the query dataset ###
     df_query = to_dataframe(query_spectrograms, query_labels)
+
+    label_dic["UNK"]=2 # add unknowns for later use
     queryLoader = AudioDatasetDCASE(df_query, label_dict=label_dic)
     queryLoader = DataLoader(
         queryLoader, batch_size=1
@@ -185,36 +188,68 @@ def compute(
         #########################################################
 
         # Detect POS samples
-        detected_pos_indices = np.where(
-            p_values_pos >= cfg["predict"]["self_detect_threshold_p_value"]
-        )[
-            0
-        ]  # We need to be sure that it is POS samples
+        if cfg["predict"]["filter_by_p_value"]:
+            detected_pos_indices = np.where(
+                p_values_pos >= cfg["predict"]["self_detect_threshold_p_value"]
+            )[
+                0
+            ]  
+        else:
+            detected_pos_indices = np.where(
+                predicted_labels == pos_index
+            )[
+                0
+            ]
+        # always remove known false POS NOTE: right now always predicted label (so distance) decides whether it's a FP
+        index_of_fifth_pos_support = df_query[df_query["category"]=="POS"].index[4]
+        known_FP = np.logical_and(predicted_labels[0:index_of_fifth_pos_support] == pos_index, np.squeeze(labels)[0:index_of_fifth_pos_support] == neg_index)
+        print(f"[INFO] SELF DETECTED {len(known_FP)} FALSE POSITIVES")
+        detected_pos_indices = np.delete(detected_pos_indices,np.in1d(detected_pos_indices, np.where(known_FP)))
         print(f"[INFO] SELF DETECTED {len(detected_pos_indices)} POS SAMPLES")
 
-        if len(detected_pos_indices) > 0:
-            # BECAUSE CUDA ERROR WHEN RESAMPLING TOO MANY SAMPLES
-            if len(detected_pos_indices) > 20:
-                detected_pos_indices = np.random.choice(
-                    detected_pos_indices, size=20, replace=False
-                )
+        
 
-            df_extension_pos = df_query.iloc[detected_pos_indices].copy()
-            df_extension_pos["category"] = "POS"
+        # BECAUSE CUDA ERROR WHEN RESAMPLING TOO MANY SAMPLES
+        if len(detected_pos_indices) > 10:
+            detected_pos_indices = np.random.choice(
+                detected_pos_indices, size=10, replace=False
+            )
+        num_pos_samples = len(detected_pos_indices)
 
-            # # Detect NEG samples
-            df_neg = df_support[df_support["category"] == "NEG"]
-            num_pos_samples = len(detected_pos_indices)
+        df_extension_pos = df_query.iloc[detected_pos_indices].copy()
+        df_extension_pos["category"] = "POS"
 
-            if num_pos_samples > 0 and len(df_neg) > num_pos_samples:
+        # # Detect NEG samples
+        df_neg = df_support[df_support["category"] == "NEG"]
+
+        df_extension_neg = []
+        if cfg["predict"]["include_known_FP"]:
+            df_extension_neg = df_query.loc[np.where(known_FP)].copy()
+            df_extension_neg = df_extension_neg[df_extension_neg["category"]== "NEG"] # get rid of UNKs
+            if len(df_extension_neg) > 10:
+                sampled_fp_indices = np.random.choice(
+                    range(0, len(df_extension_neg)), size=10, replace=False
+                    )
+                df_extension_neg =df_extension_neg.iloc[sampled_fp_indices].copy()
+            if len(df_extension_neg) < num_pos_samples:
                 sampled_neg_indices = np.random.choice(
-                    range(0, len(df_neg)), size=num_pos_samples, replace=False
-                )
-                df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
-                df_extension_neg["category"] = "NEG"
-            else:
-                df_extension_neg = df_neg
+                    range(0, len(df_neg)), size=num_pos_samples-len(df_extension_neg), replace=num_pos_samples-len(df_extension_neg) > len(df_neg)
+                    )
+                df_extension_neg =df_extension_neg.append(df_query.iloc[sampled_neg_indices].copy())
+        elif num_pos_samples > 0 and len(df_neg) > num_pos_samples:
+            sampled_neg_indices = np.random.choice(
+                range(0, len(df_neg)), size=num_pos_samples, replace=False
+            )
+            df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
+            # df_extension_neg["category"] = "NEG"
+            assert np.all(df_extension_neg["category"] == "NEG")
+        elif num_pos_samples > 0:
+            sampled_neg_indices = np.random.choice(
+                range(0, len(df_neg)), size=num_pos_samples, replace=True
+            )
+            df_extension_neg = df_query.iloc[sampled_neg_indices].copy()
 
+        if num_pos_samples > 0 or len(df_extension_neg)>0:
             # Append both POS and NEG samples to the support set
             df_support_extended = df_support.append(
                 [df_extension_pos, df_extension_neg], ignore_index=True
@@ -302,7 +337,7 @@ def compute(
             pos_index = label_dic["POS"]
 
             ####################
-            # RETAIN THE MODEL #
+            # RETRAIN THE MODEL #
             ####################
             print("[INFO] RE-TRAINING THE MODEL FOR {}".format(filename))
             model.train()
@@ -313,6 +348,7 @@ def compute(
                 custom_datamodule=custom_dcasedatamodule,
                 max_epoch=cfg["trainer"]["max_epochs"],
                 beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
+                ft_entire_network=cfg["model"]["ft_entire_network"],
             )
             model.eval()
             # Get the prototypes coordinates
@@ -459,6 +495,7 @@ def main(cfg: DictConfig):
         "num_mel_bins": cfg["data"]["num_mel_bins"],
         "max_segment_length": cfg["data"]["max_segment_length"],
     }
+    my_hash_dict["24_data"] = True
     if cfg["data"]["resample"]:
         my_hash_dict["target_fs"] = cfg["data"]["target_fs"]
     hash_dir_name = hashlib.sha1(
@@ -521,7 +558,7 @@ def main(cfg: DictConfig):
     param = OmegaConf.to_container(param, resolve=True)
     param["overlap"] = cfg["data"]["overlap"]
     param["tolerance"] = cfg["predict"]["tolerance"]
-    param["n_self_detected_supports"] = cfg["predict"]["n_self_detected_supports"]
+    # param["n_self_detected_supports"] = cfg["predict"]["n_self_detected_supports"]
     param["n_subsample"] = cfg["data"]["n_subsample"]
     param["occurence_threshold"] = cfg["predict"]["occurence_threshold"]
     param["distribution"] = cfg["predict"]["distribution"]
@@ -530,7 +567,7 @@ def main(cfg: DictConfig):
 
     # Get all the files from the Validation / Evaluation set - when save wav option -
     if cfg["predict"]["wav_save"]:
-        path = os.path.join("/data/DCASE/Development_Set", my_hash_dict["set_type"])
+        path = os.path.join("/data/DCASE/Development_Set_24", my_hash_dict["set_type"])
         files = glob.glob(path + "/**/*.wav", recursive=True)
 
     # List all the SUPPORT files (both labels and spectrograms)
@@ -565,8 +602,8 @@ def main(cfg: DictConfig):
         filename = (
             os.path.basename(support_spectrograms).split("data_")[1].split(".")[0]
         )
-        # if not "TEL_25-10-17" in filename:
-        #     continue
+        # if not "TEL_19-10-17" in filename:
+            # continue
         (
             result,
             pred_labels,
@@ -622,7 +659,7 @@ def main(cfg: DictConfig):
     print("Evaluation Finished. Results saved to " + target_path)
     all_csv_files = [
         file
-        for path_dir, _, _ in os.walk("/data/DCASE/Development_Set/Validation_Set")
+        for path_dir, _, _ in os.walk("/data/DCASE/Development_Set_24/Validation_Set")
         for file in glob.glob(os.path.join(path_dir, "*.csv"))
     ]
     for file in tqdm(all_csv_files):

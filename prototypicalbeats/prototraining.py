@@ -31,6 +31,7 @@ class ProtoBEATsModel(pl.LightningModule):
         specaugment_params=None,
         state: str = None,
         beats_path: str = "/data/BEATs/BEATs_iter3_plus_AS2M.pt",
+        ft_entire_network: bool = True,
         **kwargs,
     ) -> None:
         """TransferLearningModel.
@@ -48,6 +49,7 @@ class ProtoBEATsModel(pl.LightningModule):
         self.state = state
         self.specaugment_params = specaugment_params
         self.beats_path = beats_path
+        self.ft_entire_network = ft_entire_network
 
         if model_path != "None":
             self.checkpoint = torch.load(model_path)
@@ -274,7 +276,16 @@ class ProtoBEATsModel(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = optim.AdamW(
-            self.model.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
-        )
+        if not self.ft_entire_network:
+            assert self.model_type == "beats"
+            optimizer = optim.AdamW(
+                self.fc.parameters,
+                lr=self.lr,
+                betas=(0.9, 0.98),
+                weight_decay=0.01,
+            )
+        else:
+            optimizer = optim.AdamW(
+                self.model.parameters(), lr=self.lr, betas=(0.9, 0.98), weight_decay=0.01
+            )
         return optimizer

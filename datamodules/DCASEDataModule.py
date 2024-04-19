@@ -139,6 +139,8 @@ class DCASEDataModule(LightningDataModule):
             "num_mel_bins": self.num_mel_bins,
             "max_segment_length": self.max_segment_length,
         }
+
+        my_hash_dict["24_data"] = True
         if self.resample:
             my_hash_dict["target_fs"] = self.target_fs
         hash_dir_name = hashlib.sha1(
@@ -154,7 +156,7 @@ class DCASEDataModule(LightningDataModule):
         data_frame = pd.DataFrame({"feature": list_input_features, "category": labels})
 
         complete_dataset = AudioDatasetDCASE(
-            data_frame=data_frame,
+            data_frame=data_frame, 
         )
         # Separate into training and validation set
         train_indices, validation_indices, _, _ = train_test_split(

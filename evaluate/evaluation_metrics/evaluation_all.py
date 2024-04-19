@@ -364,7 +364,7 @@ if __name__ == "__main__":
     for file in all_files:
         fscore = evaluate(
             pred_file_path=file,
-            ref_file_path="/data/DCASE/Development_Set_annotations/Validation_Set",
+            ref_file_path="/data/DCASE/Development_Set_24_annotations/Validation_Set",
             team_name="whatever",
             dataset="VAL",
             savepath="/data/.",

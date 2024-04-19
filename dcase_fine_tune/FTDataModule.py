@@ -214,46 +214,46 @@ class DCASEDataModule(LightningDataModule):
 #         return self.label_dict
 
 
-class predictLoader:
-    def __init__(
-        self, data_frame=pd.DataFrame, batch_size=1, num_workers=4, tensor_length=128
-    ):
-        self.data_frame = data_frame
-        self.batch_size = batch_size
-        self.num_workers = num_workers
-        self.tensor_length = tensor_length
-        self.setup()
+# class predictLoader:
+#     def __init__(
+#         self, data_frame=pd.DataFrame, batch_size=1, num_workers=4, tensor_length=128
+#     ):
+#         self.data_frame = data_frame
+#         self.batch_size = batch_size
+#         self.num_workers = num_workers
+#         self.tensor_length = tensor_length
+#         self.setup()
 
-    def setup(self, stage=None):
-        # load data
-        self.complete_dataset = AudioDatasetDCASE(
-            data_frame=self.data_frame,
-        )
+#     def setup(self, stage=None):
+#         # load data
+#         self.complete_dataset = AudioDatasetDCASE(
+#             data_frame=self.data_frame,
+#         )
 
-    def pred_dataloader(self):
-        pred_loader = DataLoader(
-            self.complete_dataset,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=False,
-            shuffle=True,
-            collate_fn=self.collate_fn,
-        )
-        return pred_loader
+#     def pred_dataloader(self):
+#         pred_loader = DataLoader(
+#             self.complete_dataset,
+#             batch_size=self.batch_size,
+#             num_workers=self.num_workers,
+#             pin_memory=False,
+#             shuffle=True,
+#             collate_fn=self.collate_fn,
+#         )
+#         return pred_loader
 
-    def collate_fn(self, input_data):
-        true_class_ids = list({x[1] for x in input_data})
-        new_input = []
-        for x in input_data:
-            if x[0].shape[1] > self.tensor_length:
-                rand_start = torch.randint(0, x[0].shape[1] - self.tensor_length, (1,))
-                new_input.append(
-                    (x[0][:, rand_start : rand_start + self.tensor_length], x[1])
-                )
-            else:
-                new_input.append(x)
+#     def collate_fn(self, input_data):
+#         true_class_ids = list({x[1] for x in input_data})
+#         new_input = []
+#         for x in input_data:
+#             if x[0].shape[1] > self.tensor_length:
+#                 rand_start = torch.randint(0, x[0].shape[1] - self.tensor_length, (1,))
+#                 new_input.append(
+#                     (x[0][:, rand_start : rand_start + self.tensor_length], x[1])
+#                 )
+#             else:
+#                 new_input.append(x)
 
-        all_images = torch.cat([x[0].unsqueeze(0) for x in new_input])
-        all_labels = torch.tensor([true_class_ids.index(x[1]) for x in input_data])
+#         all_images = torch.cat([x[0].unsqueeze(0) for x in new_input])
+#         all_labels = torch.tensor([true_class_ids.index(x[1]) for x in input_data])
 
-        return (all_images, all_labels)
+#         return (all_images, all_labels)

@@ -32,7 +32,7 @@ import noisereduce as nr
 
 PLOT = False
 PLOT_TOO_SHORT_SAMPLES = False
-PLOT_SUPPORT = False
+PLOT_SUPPORT = True
 
 
 def normalize_mono(samples):
@@ -42,14 +42,24 @@ def normalize_mono(samples):
 
 
 def denoise_signal(samples, sr):
-    denoised_signal_samples = nr.reduce_noise(
-        y=np.squeeze(samples),
-        sr=sr,
-        prop_decrease=0.95,
-        stationary=True,
-        time_mask_smooth_ms=25,
-        freq_mask_smooth_hz=1000,
-    )
+    try:
+        denoised_signal_samples = nr.reduce_noise(
+            y=np.squeeze(samples),
+            sr=sr,
+            prop_decrease=0.95,
+            stationary=True,
+            time_mask_smooth_ms=25,
+            freq_mask_smooth_hz=1000,
+        )
+    except:
+        denoised_signal_samples = nr.reduce_noise(
+            y=np.squeeze(samples),
+            sr=sr,
+            prop_decrease=0.95,
+            stationary=True,
+            time_mask_smooth_ms=43,
+            freq_mask_smooth_hz=1000,
+        )
     return denoised_signal_samples
 
 
@@ -84,7 +94,6 @@ def preprocess(
 
 def prepare_training_val_data(
     status,
-    set_type,
     overwrite,
     tensor_length=128,
     frame_length=25.0,
@@ -250,8 +259,19 @@ def prepare_training_val_data(
                 )
                 break
 
+        # Select 'set_type' depending on chosen status
+
+    if status == "train":
+        set_type = "Training_Set"
+
+    elif status == "validate":
+        set_type = "Validation_Set"
+
+    else:
+        set_type = "Evaluation_Set"
+
     # Root directory of data to be processed
-    root_dir = "/data/DCASE/Development_Set"
+    root_dir = "/data/DCASE/Development_Set_24"
 
     # Create directories for saving
     my_hash_dict = {
@@ -265,12 +285,18 @@ def prepare_training_val_data(
         "num_mel_bins": num_mel_bins,
         "max_segment_length": max_segment_length,
     }
+    if "24" in root_dir:
+        my_hash_dict["24_data"] = True
     if resample:
         my_hash_dict["target_fs"] = target_fs
     hash_dir_name = hashlib.sha1(
         json.dumps(my_hash_dict, sort_keys=True).encode()
     ).hexdigest()
     target_path = os.path.join("/data/DCASEfewshot", status, hash_dir_name)
+    if os.path.exists(os.path.join(target_path, "audio")):
+        print("Warning, audio path already exists.")
+    if os.path.exists(os.path.join(target_path, "plots")):
+        print("Warning, plots path already exists.")
     if overwrite:
         if os.path.exists(target_path):
             shutil.rmtree(os.path.join(target_path, "audio"))
@@ -308,18 +334,20 @@ def prepare_training_val_data(
         split_list = file.split("/")
         glob_cls_name = split_list[split_list.index(set_type) + 1]
         file_name = split_list[split_list.index(set_type) + 2]
-        df = pd.read_csv(file, header=0, index_col=False)
+        df_all = pd.read_csv(file, header=0, index_col=False)
 
         # read audio file into y
         audio_path = file.replace("csv", "wav")
         print("Processing file name {}".format(audio_path))
         y, fs = librosa.load(audio_path, sr=None, mono=True)
-        if not resample: # or my_hash_dict["target_fs"] > fs:
+        if not resample or my_hash_dict["target_fs"] > fs:
             target_fs = fs
-        #else:
-        #    target_fs = my_hash_dict["target_fs"]
-        df = df[(df == "POS").any(axis=1)]
+        else:
+            target_fs = my_hash_dict["target_fs"]
+        df = df_all[(df_all == "POS").any(axis=1)]
         df = df.reset_index()
+        df_UNK = df_all[(df_all == "UNK").any(axis=1)]
+        df_UNK = df_UNK.reset_index()
 
         # For csv files with a column name Call, pick up the global class name
         if "CALL" in df.columns:
@@ -404,6 +432,9 @@ def prepare_training_val_data(
             interval_array = pd.arrays.IntervalArray.from_arrays(
                 df["Starttime"].values, df["Endtime"].values
             )
+            interval_array_UNK = pd.arrays.IntervalArray.from_arrays(
+                df_UNK["Starttime"].values, df_UNK["Endtime"].values
+            )
             segment_end_ind = 0
             while segment_end_ind < data.shape[1]:
                 # add feature
@@ -430,9 +461,14 @@ def prepare_training_val_data(
                     segment_start_ind * frame_shift / 1000,
                     segment_end_ind * frame_shift / 1000,
                 )
-                is_included = np.any(interval_array.overlaps(segment_interval))
+
                 # add label
-                label = "POS" if is_included else "NEG"
+                if np.any(interval_array.overlaps(segment_interval)):
+                    label = "POS"
+                elif np.any(interval_array_UNK.overlaps(segment_interval)):
+                    label = "UNK"
+                else:
+                    label = "NEG"
                 labels.append(label)
                 segment_ind += 1
                 if PLOT:
@@ -474,6 +510,7 @@ def prepare_training_val_data(
             # CREATE SUPPORT SETS
             # reduce df to 5 lines and class list
             df = df.head(5)
+            assert np.all(df["Q"].values == "POS")
             neg_starttimes = []
             neg_endtimes = []
             last_pos_end_time = 0.0
@@ -591,19 +628,8 @@ if __name__ == "__main__":
             + "'."
         )
 
-    # Select 'set_type' depending on chosen status
-    if cfg["data"]["status"] == "train":
-        cfg["data"]["set_type"] = "Training_Set"
-
-    elif cfg["data"]["status"] == "validate":
-        cfg["data"]["set_type"] = "Validation_Set"
-
-    else:
-        cfg["data"]["set_type"] = "Evaluation_Set"
-
     prepare_training_val_data(
         cfg["data"]["status"],
-        cfg["data"]["set_type"],
         cli_args.overwrite,
         cfg["data"]["tensor_length"],
         cfg["data"]["frame_length"],

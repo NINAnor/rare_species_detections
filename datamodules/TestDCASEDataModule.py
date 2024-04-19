@@ -125,7 +125,7 @@ class DCASEDataModule(LightningDataModule):
     def setup(self, stage=None):
         # load data
         self.complete_dataset = AudioDatasetDCASE(
-            data_frame=self.data_frame,
+            data_frame=self.data_frame
         )
 
     def train_dataloader(self):

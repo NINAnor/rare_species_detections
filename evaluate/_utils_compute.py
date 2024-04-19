@@ -8,7 +8,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 from scipy.stats import norm
 
 from prototypicalbeats.prototraining import ProtoBEATsModel
-from datamodules.TestDCASEDataModule import DCASEDataModule, AudioDatasetDCASE
+from datamodules.TestDCASEDataModule import DCASEDataModule
 
 import pytorch_lightning as pl
 
@@ -64,10 +64,16 @@ def calculate_distance(model_type, z_query, z_proto):
 
 
 def compute_scores(predicted_labels, gt_labels):
-    acc = accuracy_score(gt_labels, predicted_labels)
-    recall = recall_score(gt_labels, predicted_labels)
-    f1score = f1_score(gt_labels, predicted_labels)
-    precision = precision_score(gt_labels, predicted_labels)
+    # remove unk from calculations
+    gt_labels_copy = gt_labels.squeeze()
+    keep = gt_labels_copy != 2
+    gt_labels_copy = gt_labels_copy[keep]
+    predicted_labels_copy = predicted_labels[keep]
+    # do calculations
+    acc = accuracy_score(gt_labels_copy, predicted_labels_copy)
+    recall = recall_score(gt_labels_copy, predicted_labels_copy)
+    f1score = f1_score(gt_labels_copy, predicted_labels_copy)
+    precision = precision_score(gt_labels_copy, predicted_labels_copy)
     print(f"Accurracy: {acc}")
     print(f"Recall: {recall}")
     print(f"precision: {precision}")
@@ -118,6 +124,7 @@ def train_model(
     pretrained_model=None,
     state=None,
     beats_path="/data/model/BEATs/BEATs_iter3_plus_AS2M.pt",
+    ft_entire_network=True
 ):
     # create the lightning trainer object
     trainer = pl.Trainer(
@@ -137,7 +144,7 @@ def train_model(
 
     # create the model object
     model = ProtoBEATsModel(
-        model_type=model_type, state=state, model_path=pretrained_model
+        model_type=model_type, state=state, model_path=pretrained_model, ft_entire_network=ft_entire_network
     )
 
     # train the model
@@ -147,7 +154,7 @@ def train_model(
 
 
 def training(
-    model_type, pretrained_model, state, custom_datamodule, max_epoch, beats_path
+    model_type, pretrained_model, state, custom_datamodule, max_epoch, beats_path,ft_entire_network
 ):
     model = train_model(
         model_type,
@@ -159,6 +166,7 @@ def training(
         pretrained_model=pretrained_model,
         state=state,
         beats_path=beats_path,
+        ft_entire_network=ft_entire_network
     )
 
     return model
