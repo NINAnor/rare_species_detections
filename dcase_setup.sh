@@ -33,27 +33,19 @@ MODEL_FOLDER=$BASE_FOLDER/model/BEATs
 mkdir -p $MODEL_FOLDER
 wget -O "$MODEL_FOLDER/BEATs_iter3_plus_AS2M.pt" "https://valle.blob.core.windows.net/share/BEATs/BEATs_iter3_plus_AS2M.pt?sv=2020-08-04&st=2023-03-01T07%3A51%3A05Z&se=2033-03-02T07%3A51%3A00Z&sr=c&sp=rl&sig=QJXmSJG9DbMKf48UDIU1MfzIro8HQOf3sqlNXiflY1I%3D" 
 
-###########################
-# Download the PANN model #
-###########################
-
-CHECKPOINT_PATH="$BASE_FOLDER/model/PANN"
-mkdir -p $CHECKPOINT_PATH
-wget -O $CHECKPOINT_PATH/Cnn14_mAP=0.431.pth https://zenodo.org/record/3987831/files/Cnn14_mAP%3D0.431.pth?download=1
-
 #############################################################
 # Download the development set (i.e. training + validation) #
 #############################################################
 
 # .csv
-download_and_unzip "https://zenodo.org/record/6482837/files/DCASE2022_task5_Training_set_classes.csv?download=1" "$TARGET_FOLDER"
-download_and_unzip "https://zenodo.org/record/6482837/files/DCASE2022_task5_Validation_set_classes.csv?download=1" "$TARGET_FOLDER"
+download_and_unzip "https://zenodo.org/records/10829604/files/DCASE2024_task5_training_set_classes.csv?download=1" "$TARGET_FOLDER"
+download_and_unzip "https://zenodo.org/records/10829604/files/DCASE2024_task5_validation_set_classes.csv?download=1" "$TARGET_FOLDER"
 
 # Annotations
-download_and_unzip "https://zenodo.org/record/6482837/files/Development_Set_annotations.zip?download=1" "$TARGET_FOLDER"
+download_and_unzip "https://zenodo.org/records/10829604/files/Development_set_annotations.zip?download=1" "$TARGET_FOLDER"
 
 # Acoustic data
-download_and_unzip "https://zenodo.org/record/6482837/files/Development_Set.zip?download=1" "$TARGET_FOLDER"
+download_and_unzip "https://zenodo.org/records/10829604/files/Development_set.zip?download=1" "$TARGET_FOLDER"
 
 #####################################################################
 # Download the evaluation set - OUTDATED AS THIS WAS FOR DCASE 2023 #
