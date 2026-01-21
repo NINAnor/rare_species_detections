@@ -11,7 +11,7 @@ librosa = "^0.9.1"
 SoundFile = "^0.10.3"
 matplotlib = "^3.5.2"
 ray = {extras = ["tune"], version = "^1.12.0"}
-mlflow = "^1.25.1"
+mlflow = "^2.16.0"
 bayesian-optimization = "^1.2.0"
 audiomentations = "^0.25.1"
 torch = {url = "https://download.pytorch.org/whl/cu113/torch-1.11.0%2Bcu113-cp38-cp38-linux_x86_64.whl"}
