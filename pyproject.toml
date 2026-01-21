@@ -10,7 +10,7 @@ scikit-learn = "^1.0.2"
 librosa = "^0.9.1"
 SoundFile = "^0.10.3"
 matplotlib = "^3.5.2"
-ray = {extras = ["tune"], version = "^1.12.0"}
+ray = {extras = ["tune"], version = "^2.8.1"}
 mlflow = "^1.25.1"
 bayesian-optimization = "^1.2.0"
 audiomentations = "^0.25.1"
